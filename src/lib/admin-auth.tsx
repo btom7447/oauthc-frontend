@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 
-export type Role = "super-admin" | "admin" | "doctor";
+export type Role = "admin" | "staff" | "doctor";
 
 export type AuthUser = {
   id: string;
@@ -24,16 +24,16 @@ const MOCK_USERS: (AuthUser & { password: string })[] = [
   {
     id: "1",
     name: "Emeka Okafor",
-    email: "super@oauthc.gov.ng",
+    email: "admin@oauthc.gov.ng",
     password: "password",
-    role: "super-admin",
+    role: "admin",
   },
   {
     id: "2",
     name: "Amaka Nwosu",
-    email: "admin@oauthc.gov.ng",
+    email: "staff@oauthc.gov.ng",
     password: "password",
-    role: "admin",
+    role: "staff",
   },
   {
     id: "3",
@@ -43,6 +43,15 @@ const MOCK_USERS: (AuthUser & { password: string })[] = [
     role: "doctor",
     specialty: "Cardiology",
     department: "Cardiology",
+  },
+  {
+    id: "4",
+    name: "Dr. Ngozi Chukwu",
+    email: "doctor2@oauthc.gov.ng",
+    password: "password",
+    role: "doctor",
+    specialty: "Radiology",
+    department: "Radiology",
   },
 ];
 
@@ -102,12 +111,63 @@ export function useAuth() {
   return ctx;
 }
 
-export function canAccess(role: Role, feature: "cms" | "users" | "appointments" | "profile") {
-  const matrix: Record<typeof feature, Role[]> = {
-    cms: ["super-admin", "admin"],
-    users: ["super-admin"],
-    appointments: ["super-admin", "admin", "doctor"],
-    profile: ["doctor"],
+// ─── CMS section access ───────────────────────────────────────────────────────
+export type CmsSection =
+  | "announcements"
+  | "doctors"
+  | "departments"
+  | "health-services"
+  | "diseases-symptoms"
+  | "tests-procedures"
+  | "research-ethics"
+  | "locations"
+  | "schools"
+  | "marquee";
+
+const CMS_ACCESS: Record<CmsSection, Role[]> = {
+  announcements:       ["admin", "staff"],
+  doctors:             ["admin", "staff"],
+  departments:         ["admin", "staff"],
+  "health-services":   ["admin"],
+  "diseases-symptoms": ["admin"],
+  "tests-procedures":  ["admin"],
+  "research-ethics":   ["admin", "staff"],
+  locations:           ["admin", "staff"],
+  schools:             ["admin"],
+  marquee:             ["admin", "staff"],
+};
+
+// ─── General feature access ───────────────────────────────────────────────────
+export type GeneralFeature =
+  | "cms"           // can see any CMS section
+  | "users"         // user management
+  | "appointments"  // any appointments access
+  | "profile"       // own profile editing (doctors)
+  | "inbox";        // contact/newsletter/research submissions inbox
+
+const GENERAL_ACCESS: Record<GeneralFeature, Role[]> = {
+  cms:          ["admin", "staff"],
+  users:        ["admin"],
+  appointments: ["admin", "staff", "doctor"],
+  profile:      ["doctor"],
+  inbox:        ["admin", "staff"],
+};
+
+export function canAccess(role: Role, feature: GeneralFeature | CmsSection): boolean {
+  if (feature in GENERAL_ACCESS) {
+    return GENERAL_ACCESS[feature as GeneralFeature].includes(role);
+  }
+  if (feature in CMS_ACCESS) {
+    return CMS_ACCESS[feature as CmsSection].includes(role);
+  }
+  return false;
+}
+
+export function roleLabel(role: Role): string {
+  const labels: Record<Role, string> = {
+    admin: "Administrator",
+    staff: "Staff",
+    doctor: "Doctor",
   };
-  return matrix[feature].includes(role);
+  return labels[role];
 }

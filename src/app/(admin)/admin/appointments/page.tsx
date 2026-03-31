@@ -45,7 +45,7 @@ export default function AppointmentsPage() {
   const source =
     user.role === "doctor"
       ? ALL_APPOINTMENTS.filter((a) => a.doctorId === user.id)
-      : ALL_APPOINTMENTS;
+      : ALL_APPOINTMENTS;  // admin + staff see all
 
   const filtered = useMemo(() => {
     return source.filter((a) => {

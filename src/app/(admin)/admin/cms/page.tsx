@@ -1,9 +1,13 @@
 "use client";
 
-import { useAuth } from "@/lib/admin-auth";
+import { useAuth, canAccess } from "@/lib/admin-auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Megaphone, Stethoscope, Building2, HeartPulse, ArrowRight, ShieldOff } from "lucide-react";
+import {
+  Megaphone, Stethoscope, Building2, HeartPulse,
+  ArrowRight, ShieldOff, Activity, FlaskConical,
+  Microscope, MapPin, GraduationCap, Radio,
+} from "lucide-react";
 
 const CMS_SECTIONS = [
   {
@@ -42,6 +46,60 @@ const CMS_SECTIONS = [
     color: "text-amber-600",
     bg: "bg-amber-50",
   },
+  {
+    label: "Diseases & Symptoms",
+    href: "/admin/cms/diseases-symptoms",
+    icon: Activity,
+    description: "Manage disease and symptom information pages.",
+    count: "38 entries",
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+  },
+  {
+    label: "Tests & Procedures",
+    href: "/admin/cms/tests-procedures",
+    icon: FlaskConical,
+    description: "Update diagnostic test and procedure listings.",
+    count: "27 entries",
+    color: "text-violet-600",
+    bg: "bg-violet-50",
+  },
+  {
+    label: "Research Ethics",
+    href: "/admin/cms/research-ethics",
+    icon: Microscope,
+    description: "Edit research ethics committee information and requirements.",
+    count: "1 page",
+    color: "text-teal-700",
+    bg: "bg-teal-50",
+  },
+  {
+    label: "Locations",
+    href: "/admin/cms/locations",
+    icon: MapPin,
+    description: "Manage hospital locations, addresses, and map pins.",
+    count: "8 locations",
+    color: "text-cyan-700",
+    bg: "bg-cyan-50",
+  },
+  {
+    label: "Schools & Training",
+    href: "/admin/cms/schools",
+    icon: GraduationCap,
+    description: "Manage schools of health and training programme listings.",
+    count: "6 schools",
+    color: "text-indigo-700",
+    bg: "bg-indigo-50",
+  },
+  {
+    label: "Marquee",
+    href: "/admin/cms/marquee",
+    icon: Radio,
+    description: "Manage the site-wide scrolling ticker messages and settings.",
+    count: "5 items",
+    color: "text-orange-600",
+    bg: "bg-orange-50",
+  },
 ];
 
 export default function CMSPage() {
@@ -50,7 +108,7 @@ export default function CMSPage() {
 
   if (!user) return null;
 
-  if (user.role === "doctor") {
+  if (!canAccess(user.role, "cms")) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
         <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
@@ -59,7 +117,7 @@ export default function CMSPage() {
         <div>
           <p className="text-gray-900 font-semibold">Access Restricted</p>
           <p className="text-gray-500 text-sm mt-1">
-            CMS access is limited to Admin and Super Admin roles.
+            CMS access is limited to Admin and Staff roles.
           </p>
         </div>
         <button
@@ -81,26 +139,26 @@ export default function CMSPage() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {CMS_SECTIONS.map((section) => (
           <Link
             key={section.href}
             href={section.href}
-            className="group bg-white border border-gray-100 rounded-xl p-6 shadow-sm hover:border-green-900 hover:shadow-md transition flex flex-col gap-4"
+            className="group bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:border-green-900 hover:shadow-md transition flex flex-col gap-3"
           >
             <div className="flex items-start justify-between">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${section.bg}`}>
-                <section.icon size={20} strokeWidth={1.5} className={section.color} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${section.bg}`}>
+                <section.icon size={18} strokeWidth={1.5} className={section.color} />
               </div>
               <ArrowRight
-                size={16}
+                size={15}
                 strokeWidth={1.5}
-                className="text-gray-300 group-hover:text-green-900 transition mt-1"
+                className="text-gray-300 group-hover:text-green-900 transition mt-0.5"
               />
             </div>
             <div>
-              <h2 className="text-gray-900 font-semibold text-base">{section.label}</h2>
-              <p className="text-gray-500 text-sm mt-1 leading-relaxed">
+              <h2 className="text-gray-900 font-semibold text-sm">{section.label}</h2>
+              <p className="text-gray-500 text-xs mt-0.5 leading-relaxed">
                 {section.description}
               </p>
             </div>

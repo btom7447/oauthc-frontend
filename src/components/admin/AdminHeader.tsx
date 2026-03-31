@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/lib/admin-auth";
+import { useAuth, roleLabel } from "@/lib/admin-auth";
 import { Menu, Bell } from "lucide-react";
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -9,11 +9,33 @@ const BREADCRUMB_MAP: Record<string, string> = {
   "/admin/users": "User Management",
   "/admin/appointments": "Appointments",
   "/admin/profile": "My Profile",
+  "/admin/my": "My",
+  "/admin/my/shifts": "My Shifts",
+  "/admin/my/leave": "My Leave",
+  // CMS
   "/admin/cms": "CMS",
   "/admin/cms/announcements": "Announcements",
   "/admin/cms/doctors": "Doctors",
   "/admin/cms/departments": "Departments",
   "/admin/cms/health-services": "Health Services",
+  "/admin/cms/diseases-symptoms": "Diseases & Symptoms",
+  "/admin/cms/tests-procedures": "Tests & Procedures",
+  "/admin/cms/research-ethics": "Research & Ethics",
+  "/admin/cms/locations": "Locations",
+  "/admin/cms/schools": "Schools",
+  "/admin/cms/marquee": "Marquee",
+  // Inbox
+  "/admin/inbox": "Inbox",
+  "/admin/inbox/contact": "Contact Forms",
+  "/admin/inbox/newsletter": "Newsletter",
+  "/admin/inbox/research-ethics": "Research Ethics",
+  // Staff management
+  "/admin/staff": "Staff Management",
+  "/admin/staff/shifts": "Shifts",
+  "/admin/staff/leave": "Leave Management",
+  "/admin/staff/payroll": "Payroll",
+  "/admin/staff/training": "Training & Dev.",
+  "/admin/staff/performance": "Performance Reviews",
 };
 
 type Props = { onMenuClick: () => void };
@@ -33,12 +55,8 @@ export default function AdminHeader({ onMenuClick }: Props) {
 
   return (
     <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-5 shrink-0">
-      {/* Left: hamburger + breadcrumb */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={onMenuClick}
-          className="lg:hidden text-gray-500 hover:text-gray-800 transition"
-        >
+        <button onClick={onMenuClick} className="lg:hidden text-gray-500 hover:text-gray-800 transition">
           <Menu size={20} strokeWidth={1.5} />
         </button>
 
@@ -46,13 +64,7 @@ export default function AdminHeader({ onMenuClick }: Props) {
           {crumbs.map((crumb, i) => (
             <span key={crumb.href} className="flex items-center gap-1.5">
               {i > 0 && <span className="text-gray-300">/</span>}
-              <span
-                className={
-                  i === crumbs.length - 1
-                    ? "text-gray-900 font-semibold"
-                    : "text-gray-400"
-                }
-              >
+              <span className={i === crumbs.length - 1 ? "text-gray-900 font-semibold" : "text-gray-400"}>
                 {crumb.label}
               </span>
             </span>
@@ -60,7 +72,6 @@ export default function AdminHeader({ onMenuClick }: Props) {
         </nav>
       </div>
 
-      {/* Right: bell + user */}
       {user && (
         <div className="flex items-center gap-4">
           <button className="relative text-gray-400 hover:text-gray-700 transition">
@@ -70,17 +81,11 @@ export default function AdminHeader({ onMenuClick }: Props) {
 
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-green-900/10 flex items-center justify-center">
-              <span className="text-green-900 text-xs font-bold">
-                {user.name.charAt(0)}
-              </span>
+              <span className="text-green-900 text-xs font-bold">{user.name.charAt(0)}</span>
             </div>
             <div className="hidden sm:block text-right">
-              <p className="text-gray-900 text-xs font-semibold leading-tight">
-                {user.name}
-              </p>
-              <p className="text-gray-400 text-[10px] capitalize">
-                {user.role.replace("-", " ")}
-              </p>
+              <p className="text-gray-900 text-xs font-semibold leading-tight">{user.name}</p>
+              <p className="text-gray-400 text-[10px]">{roleLabel(user.role)}</p>
             </div>
           </div>
         </div>

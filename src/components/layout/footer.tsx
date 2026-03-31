@@ -41,6 +41,7 @@ const importantLinks: NavLink[] = [
   },
   { label: "Terms of Service", href: "/terms-of-service" },
   { label: "Privacy Policy", href: "/privacy-policy" },
+  { label: "Staff Portal", href: "/admin"}
 ];
 
 const socialLinks: SocialLink[] = [

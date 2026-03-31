@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/lib/admin-auth";
+import { useAuth, roleLabel } from "@/lib/admin-auth";
 import {
   CalendarDays,
   Users,
@@ -23,17 +23,17 @@ type StatCard = {
 };
 
 const STATS_BY_ROLE = {
-  "super-admin": [
-    { label: "Total Staff", value: "248", icon: Users, color: "text-green-900", bg: "bg-green-900/10" },
-    { label: "Today's Appointments", value: "34", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
-    { label: "Active Doctors", value: "61", icon: Stethoscope, color: "text-red-600", bg: "bg-red-50" },
-    { label: "CMS Items", value: "120", icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
-  ],
   admin: [
     { label: "Today's Appointments", value: "34", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
     { label: "Active Doctors", value: "61", icon: Stethoscope, color: "text-green-900", bg: "bg-green-900/10" },
     { label: "Announcements", value: "8", icon: Megaphone, color: "text-red-600", bg: "bg-red-50" },
     { label: "CMS Items", value: "120", icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
+  ],
+  staff: [
+    { label: "Today's Appointments", value: "34", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
+    { label: "Contact Forms", value: "5", icon: FileText, color: "text-green-900", bg: "bg-green-900/10" },
+    { label: "Ethics Applications", value: "3", icon: ClipboardCheck, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Newsletter Subscribers", value: "8", icon: Users, color: "text-red-600", bg: "bg-red-50" },
   ],
   doctor: [
     { label: "My Appointments Today", value: "6", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
@@ -44,18 +44,16 @@ const STATS_BY_ROLE = {
 } satisfies Record<string, StatCard[]>;
 
 const QUICK_LINKS_BY_ROLE = {
-  "super-admin": [
-    { label: "Manage Users", href: "/admin/users", icon: Users },
-    { label: "View Appointments", href: "/admin/appointments", icon: CalendarDays },
-    { label: "Announcements", href: "/admin/cms/announcements", icon: Megaphone },
-    { label: "Manage Doctors", href: "/admin/cms/doctors", icon: Stethoscope },
-    { label: "Departments", href: "/admin/cms/departments", icon: Building2 },
-  ],
   admin: [
     { label: "View Appointments", href: "/admin/appointments", icon: CalendarDays },
     { label: "Announcements", href: "/admin/cms/announcements", icon: Megaphone },
     { label: "Manage Doctors", href: "/admin/cms/doctors", icon: Stethoscope },
     { label: "Departments", href: "/admin/cms/departments", icon: Building2 },
+  ],
+  staff: [
+    { label: "View Appointments", href: "/admin/appointments", icon: CalendarDays },
+    { label: "Contact Forms", href: "/admin/inbox/contact", icon: FileText },
+    { label: "Ethics Applications", href: "/admin/inbox/research-ethics", icon: ClipboardCheck },
   ],
   doctor: [
     { label: "My Appointments", href: "/admin/appointments", icon: CalendarDays },
@@ -136,8 +134,8 @@ export default function AdminDashboard() {
         <div className="w-2 h-2 rounded-full bg-green-500" />
         <p className="text-gray-500 text-sm">
           Signed in as{" "}
-          <span className="font-semibold text-gray-900 capitalize">
-            {user.role.replace("-", " ")}
+          <span className="font-semibold text-gray-900">
+            {roleLabel(user.role)}
           </span>
           {user.specialty && (
             <> · <span className="text-gray-400">{user.specialty}</span></>

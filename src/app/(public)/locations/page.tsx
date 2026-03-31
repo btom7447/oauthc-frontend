@@ -73,7 +73,7 @@ export default function LocationsPage() {
   return (
     <>
       <PageBreadcrumb
-        bgImage="/images/breadcrumb/location.png"
+        bgImage="/images/breadcrumb/contact.png"
         title="Our Locations"
         links={[{ label: "Locations" }]}
       />

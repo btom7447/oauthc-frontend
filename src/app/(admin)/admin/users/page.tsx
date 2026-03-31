@@ -21,23 +21,23 @@ type StaffUser = {
 };
 
 const MOCK_USERS: StaffUser[] = [
-  { id: "1", name: "Emeka Okafor", email: "super@oauthc.gov.ng", role: "super-admin", status: "active" },
-  { id: "2", name: "Amaka Nwosu", email: "admin@oauthc.gov.ng", role: "admin", status: "active" },
+  { id: "1", name: "Emeka Okafor", email: "admin@oauthc.gov.ng", role: "admin", status: "active" },
+  { id: "2", name: "Amaka Nwosu", email: "staff@oauthc.gov.ng", role: "staff", status: "active" },
   { id: "3", name: "Dr. Adewale Ojo", email: "doctor@oauthc.gov.ng", role: "doctor", department: "Cardiology", status: "active" },
   { id: "4", name: "Dr. Ngozi Chukwu", email: "ngozi@oauthc.gov.ng", role: "doctor", department: "Radiology", status: "active" },
   { id: "5", name: "Dr. Tunde Lawal", email: "tunde@oauthc.gov.ng", role: "doctor", department: "Neurology", status: "active" },
   { id: "6", name: "Dr. Kemi Adeyinka", email: "kemi@oauthc.gov.ng", role: "doctor", department: "Ophthalmology", status: "suspended" },
   { id: "7", name: "Dr. Yetunde Abiola", email: "yetunde@oauthc.gov.ng", role: "doctor", department: "Oncology", status: "active" },
-  { id: "8", name: "Bola Fashola", email: "bola@oauthc.gov.ng", role: "admin", status: "active" },
+  { id: "8", name: "Bola Fashola", email: "bola@oauthc.gov.ng", role: "staff", status: "active" },
 ];
 
 const ROLE_STYLES: Record<Role, string> = {
-  "super-admin": "bg-red-50 text-red-700 border border-red-100",
-  admin: "bg-blue-50 text-blue-700 border border-blue-100",
+  admin: "bg-red-50 text-red-700 border border-red-100",
+  staff: "bg-blue-50 text-blue-700 border border-blue-100",
   doctor: "bg-green-50 text-green-800 border border-green-100",
 };
 
-const ROLES: Role[] = ["super-admin", "admin", "doctor"];
+const ROLES: Role[] = ["admin", "staff", "doctor"];
 
 export default function UsersPage() {
   const { user } = useAuth();
@@ -48,7 +48,7 @@ export default function UsersPage() {
 
   if (!user) return null;
 
-  if (user.role !== "super-admin") {
+  if (user.role !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
         <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
@@ -57,7 +57,7 @@ export default function UsersPage() {
         <div>
           <p className="text-gray-900 font-semibold">Access Restricted</p>
           <p className="text-gray-500 text-sm mt-1">
-            User management is only available to Super Admins.
+            User management is only available to Administrators.
           </p>
         </div>
         <button
