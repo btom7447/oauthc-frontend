@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, Mail, Calendar, User } from "lucide-react";
+import { Search, Mail, Calendar, User, Download } from "lucide-react";
 
 type ContactSubmission = {
   id: string;
@@ -26,6 +26,24 @@ const STATUS_STYLES = {
   read: "bg-gray-100 text-gray-500 border border-gray-200",
   replied: "bg-green-50 text-green-800 border border-green-100",
 };
+
+function downloadCSV(data: ContactSubmission[]) {
+  const headers = ["Name", "Email", "Subject", "Message", "Submitted At", "Status"];
+  const rows = data.map((i) => [
+    i.name, i.email, i.subject,
+    `"${i.message.replace(/"/g, '""')}"`,
+    new Date(i.submittedAt).toLocaleString("en-GB"),
+    i.status,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `contact-forms-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function ContactInboxPage() {
   const [search, setSearch] = useState("");
@@ -57,6 +75,13 @@ export default function ContactInboxPage() {
             {unreadCount} unread · {items.length} total
           </p>
         </div>
+        <button
+          onClick={() => downloadCSV(filtered)}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:border-green-900 hover:text-green-900 transition shadow-sm"
+        >
+          <Download size={14} strokeWidth={1.5} />
+          Export CSV
+        </button>
       </div>
 
       <div className="relative max-w-xs">

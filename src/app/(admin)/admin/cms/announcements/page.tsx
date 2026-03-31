@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Search, Plus, Megaphone, Pencil, Trash2, X } from "lucide-react";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 type AnnouncementStatus = "active" | "draft" | "expired";
 
@@ -12,17 +13,20 @@ type Announcement = {
   date: string;
   status: AnnouncementStatus;
   priority: "normal" | "urgent";
+  image: string;
+  link: string;
+  featured: boolean;
 };
 
 const MOCK: Announcement[] = [
-  { id: "1", title: "Hospital Upgrade Notice", body: "Our radiology wing will undergo maintenance from April 5–7. Services will be temporarily limited.", date: "2026-03-28", status: "active", priority: "normal" },
-  { id: "2", title: "COVID-19 Booster Campaign", body: "Free booster vaccines available at OPD every Saturday, 9am–1pm.", date: "2026-03-20", status: "active", priority: "urgent" },
-  { id: "3", title: "New Specialist Clinic Opening", body: "Our new Endocrinology specialist clinic opens April 10. Book appointments via the portal.", date: "2026-03-15", status: "active", priority: "normal" },
-  { id: "4", title: "Blood Donation Drive", body: "Annual blood donation drive scheduled for April 20 at the main hall.", date: "2026-03-10", status: "draft", priority: "normal" },
-  { id: "5", title: "Pharmacy Operating Hours", body: "The hospital pharmacy will now operate 24/7 starting April 1.", date: "2026-02-28", status: "expired", priority: "normal" },
-  { id: "6", title: "Emergency Ward Expansion", body: "The A&E ward has been expanded. New triage protocols are now in effect.", date: "2026-02-10", status: "active", priority: "urgent" },
-  { id: "7", title: "Staff Training Day", body: "All non-emergency staff are requested to attend the CPD training on April 12.", date: "2026-03-25", status: "draft", priority: "normal" },
-  { id: "8", title: "Visiting Hours Update", body: "Visiting hours are now 10am–12pm and 4pm–6pm daily.", date: "2026-01-15", status: "expired", priority: "normal" },
+  { id: "1", title: "Hospital Upgrade Notice", body: "Our radiology wing will undergo maintenance from April 5–7. Services will be temporarily limited.", date: "2026-03-28", status: "active", priority: "normal", image: "", link: "", featured: false },
+  { id: "2", title: "COVID-19 Booster Campaign", body: "Free booster vaccines available at OPD every Saturday, 9am–1pm.", date: "2026-03-20", status: "active", priority: "urgent", image: "", link: "", featured: false },
+  { id: "3", title: "New Specialist Clinic Opening", body: "Our new Endocrinology specialist clinic opens April 10. Book appointments via the portal.", date: "2026-03-15", status: "active", priority: "normal", image: "", link: "", featured: false },
+  { id: "4", title: "Blood Donation Drive", body: "Annual blood donation drive scheduled for April 20 at the main hall.", date: "2026-03-10", status: "draft", priority: "normal", image: "", link: "", featured: false },
+  { id: "5", title: "Pharmacy Operating Hours", body: "The hospital pharmacy will now operate 24/7 starting April 1.", date: "2026-02-28", status: "expired", priority: "normal", image: "", link: "", featured: false },
+  { id: "6", title: "Emergency Ward Expansion", body: "The A&E ward has been expanded. New triage protocols are now in effect.", date: "2026-02-10", status: "active", priority: "urgent", image: "", link: "", featured: false },
+  { id: "7", title: "Staff Training Day", body: "All non-emergency staff are requested to attend the CPD training on April 12.", date: "2026-03-25", status: "draft", priority: "normal", image: "", link: "", featured: false },
+  { id: "8", title: "Visiting Hours Update", body: "Visiting hours are now 10am–12pm and 4pm–6pm daily.", date: "2026-01-15", status: "expired", priority: "normal", image: "", link: "", featured: false },
 ];
 
 const STATUS_STYLES: Record<AnnouncementStatus, string> = {
@@ -31,7 +35,9 @@ const STATUS_STYLES: Record<AnnouncementStatus, string> = {
   expired: "bg-red-50 text-red-600 border border-red-100",
 };
 
-const EMPTY: Omit<Announcement, "id"> = { title: "", body: "", date: "", status: "draft", priority: "normal" };
+const EMPTY: Omit<Announcement, "id"> = { title: "", body: "", date: "", status: "draft", priority: "normal", image: "", link: "", featured: false };
+
+const inputCls = "border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50";
 
 export default function AnnouncementsPage() {
   const [items, setItems] = useState(MOCK);
@@ -63,6 +69,7 @@ export default function AnnouncementsPage() {
   const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
 
   const setField = (k: string, v: string) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
+  const setBool = (k: string, v: boolean) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
 
   return (
     <div className="flex flex-col gap-6">
@@ -123,37 +130,65 @@ export default function AnnouncementsPage() {
               <h2 className="text-gray-900 font-semibold text-base">{panel.mode === "new" ? "New Announcement" : "Edit Announcement"}</h2>
               <button onClick={() => setPanel(null)} className="text-gray-300 hover:text-gray-600 transition"><X size={16} strokeWidth={1.5} /></button>
             </div>
+
+            <ImageUpload
+              value={panel.data.image}
+              onChange={(v) => setField("image", v)}
+              label="Hero Image"
+              aspectRatio="landscape"
+              folder="announcements"
+            />
+
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Title</label>
-                <input value={panel.data.title} onChange={(e) => setField("title", e.target.value)} placeholder="Announcement title" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                <input value={panel.data.title} onChange={(e) => setField("title", e.target.value)} placeholder="Announcement title" className={inputCls} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Body</label>
-                <textarea value={panel.data.body} onChange={(e) => setField("body", e.target.value)} rows={4} placeholder="Announcement body…" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
+                <textarea value={panel.data.body} onChange={(e) => setField("body", e.target.value)} rows={4} placeholder="Announcement body…" className={`${inputCls} resize-none`} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Link <span className="text-gray-400 font-normal">(optional URL)</span></label>
+                <input type="url" value={panel.data.link} onChange={(e) => setField("link", e.target.value)} placeholder="https://…" className={inputCls} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-600">Date</label>
-                  <input type="date" value={panel.data.date} onChange={(e) => setField("date", e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                  <input type="date" value={panel.data.date} onChange={(e) => setField("date", e.target.value)} className={inputCls} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-600">Priority</label>
-                  <select value={panel.data.priority} onChange={(e) => setField("priority", e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 appearance-none">
+                  <select value={panel.data.priority} onChange={(e) => setField("priority", e.target.value)} className={`${inputCls} appearance-none`}>
                     <option value="normal">Normal</option>
                     <option value="urgent">Urgent</option>
                   </select>
                 </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Status</label>
-                <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 appearance-none">
-                  <option value="draft">Draft</option>
-                  <option value="active">Active</option>
-                  <option value="expired">Expired</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Status</label>
+                  <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className={`${inputCls} appearance-none`}>
+                    <option value="draft">Draft</option>
+                    <option value="active">Active</option>
+                    <option value="expired">Expired</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Featured</label>
+                  <label className="flex items-center gap-2 h-[42px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={panel.data.featured}
+                      onChange={(e) => setBool("featured", e.target.checked)}
+                      className="w-4 h-4 rounded accent-green-900 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-600">Show in homepage carousel</span>
+                  </label>
+                </div>
               </div>
             </div>
+
             <button onClick={save} disabled={!panel.data.title} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
               {panel.mode === "new" ? "Create Announcement" : "Save Changes"}
             </button>

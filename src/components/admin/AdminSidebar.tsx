@@ -143,12 +143,12 @@ const NAV: NavItem[] = [
     comingSoon: true,
   },
 
-  // ── Doctor profile ────────────────────────────────────────────────────────
+  // ── Profile (all roles) ─────────────────────────────────────────────────
   {
     label: "My Profile",
     href: "/admin/profile",
     icon: UserCircle,
-    roles: ["doctor"],
+    roles: ["admin", "staff", "doctor"],
   },
 ];
 
@@ -309,9 +309,13 @@ export default function AdminSidebar({ open, onClose }: Props) {
         {/* User info + logout */}
         <div className="shrink-0 border-t border-gray-100 p-3">
           <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
-            <div className="w-8 h-8 rounded-full bg-green-900/10 flex items-center justify-center shrink-0">
-              <span className="text-green-900 text-xs font-bold">{user.name.charAt(0)}</span>
-            </div>
+            {user.avatar ? (
+              <Image src={user.avatar} alt={user.name} width={32} height={32} className="w-8 h-8 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-green-900/10 flex items-center justify-center shrink-0">
+                <span className="text-green-900 text-xs font-bold">{user.name.charAt(0)}</span>
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-gray-900 text-xs font-semibold truncate">{user.name}</p>
               <p className="text-gray-400 text-[10px] truncate capitalize">{user.role}</p>

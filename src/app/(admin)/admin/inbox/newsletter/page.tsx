@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, Newspaper, Mail, Trash2 } from "lucide-react";
+import { Search, Mail, Trash2, Download } from "lucide-react";
 
 type Subscriber = {
   id: string;
@@ -20,6 +20,23 @@ const MOCK: Subscriber[] = [
   { id: "7", email: "chinwe.eze@email.com", subscribedAt: "2026-03-25T10:05:00Z", status: "unsubscribed" },
   { id: "8", email: "ibrahim.m@email.com", subscribedAt: "2026-03-28T12:33:00Z", status: "active" },
 ];
+
+function downloadCSV(data: Subscriber[]) {
+  const headers = ["Email", "Subscribed At", "Status"];
+  const rows = data.map((i) => [
+    i.email,
+    new Date(i.subscribedAt).toLocaleString("en-GB"),
+    i.status,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `newsletter-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function NewsletterInboxPage() {
   const [search, setSearch] = useState("");
@@ -42,11 +59,20 @@ export default function NewsletterInboxPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-gray-900 text-xl font-bold">Newsletter Subscribers</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {activeCount} active · {items.length} total
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-gray-900 text-xl font-bold">Newsletter Subscribers</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {activeCount} active · {items.length} total
+          </p>
+        </div>
+        <button
+          onClick={() => downloadCSV(filtered)}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:border-green-900 hover:text-green-900 transition shadow-sm"
+        >
+          <Download size={14} strokeWidth={1.5} />
+          Export CSV
+        </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -129,13 +155,6 @@ export default function NewsletterInboxPage() {
         </div>
       </div>
 
-      {/* Export hint */}
-      <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-5 py-3.5 shadow-sm">
-        <Newspaper size={15} strokeWidth={1.5} className="text-gray-400 shrink-0" />
-        <p className="text-gray-500 text-xs">
-          Export functionality and bulk email integration coming soon.
-        </p>
-      </div>
     </div>
   );
 }

@@ -2,28 +2,36 @@
 
 import { useState, useMemo } from "react";
 import { Search, Plus, GraduationCap, Pencil, Trash2, X } from "lucide-react";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 type SchoolStatus = "active" | "inactive";
 
 type School = {
   id: string;
   name: string;
+  slug: string;
+  image: string;
+  tagline: string;
   description: string;
   programmes: string;
   dean: string;
   email: string;
   phone: string;
   accreditation: string;
+  facultyMembers: string;
+  facilities: string;
   status: SchoolStatus;
 };
 
+function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
+
 const MOCK: School[] = [
-  { id: "1", name: "School of Nursing", description: "Trains professional nurses in both general and specialist nursing disciplines.", programmes: "Basic Nursing, Post-Basic Nursing, Midwifery", dean: "Mrs. Folake Adeyemi", email: "nursing@oauthc.gov.ng", phone: "+234 036 230 410", accreditation: "Nursing and Midwifery Council of Nigeria", status: "active" },
-  { id: "2", name: "School of Midwifery", description: "Provides training in midwifery care for mother and child health.", programmes: "Basic Midwifery", dean: "Mrs. Grace Olanrewaju", email: "midwifery@oauthc.gov.ng", phone: "+234 036 230 411", accreditation: "Nursing and Midwifery Council of Nigeria", status: "active" },
-  { id: "3", name: "School of Health Information Management", description: "Trains health information management professionals for healthcare systems.", programmes: "Diploma in Health Information Management", dean: "Mr. Segun Akinwale", email: "him@oauthc.gov.ng", phone: "+234 036 230 412", accreditation: "Association of Health Information Managers of Nigeria", status: "active" },
-  { id: "4", name: "School of Medical Laboratory Science", description: "Trains laboratory scientists to support clinical diagnosis.", programmes: "Diploma in Medical Laboratory Technology", dean: "Dr. Bisi Oyelola", email: "mls@oauthc.gov.ng", phone: "+234 036 230 413", accreditation: "Medical Laboratory Science Council of Nigeria", status: "active" },
-  { id: "5", name: "School of Pharmacy Technicians", description: "Produces pharmacy technicians to support pharmacists in medicine dispensing.", programmes: "Diploma in Pharmacy Technology", dean: "Mr. Adewale Ola", email: "pharmacy-tech@oauthc.gov.ng", phone: "+234 036 230 414", accreditation: "Pharmacists Council of Nigeria", status: "active" },
-  { id: "6", name: "School of Perioperative Nursing", description: "Specialised training for perioperative and theatre nursing practice.", programmes: "Post-Basic Perioperative Nursing", dean: "Mrs. Yetunde Sanni", email: "periop@oauthc.gov.ng", phone: "+234 036 230 415", accreditation: "Nursing and Midwifery Council of Nigeria", status: "inactive" },
+  { id: "1", name: "School of Nursing", slug: "school-of-nursing", image: "", tagline: "", description: "Trains professional nurses in both general and specialist nursing disciplines.", programmes: "Basic Nursing, Post-Basic Nursing, Midwifery", dean: "Mrs. Folake Adeyemi", email: "nursing@oauthc.gov.ng", phone: "+234 036 230 410", accreditation: "Nursing and Midwifery Council of Nigeria", facultyMembers: "", facilities: "", status: "active" },
+  { id: "2", name: "School of Midwifery", slug: "school-of-midwifery", image: "", tagline: "", description: "Provides training in midwifery care for mother and child health.", programmes: "Basic Midwifery", dean: "Mrs. Grace Olanrewaju", email: "midwifery@oauthc.gov.ng", phone: "+234 036 230 411", accreditation: "Nursing and Midwifery Council of Nigeria", facultyMembers: "", facilities: "", status: "active" },
+  { id: "3", name: "School of Health Information Management", slug: "school-of-health-information-management", image: "", tagline: "", description: "Trains health information management professionals for healthcare systems.", programmes: "Diploma in Health Information Management", dean: "Mr. Segun Akinwale", email: "him@oauthc.gov.ng", phone: "+234 036 230 412", accreditation: "Association of Health Information Managers of Nigeria", facultyMembers: "", facilities: "", status: "active" },
+  { id: "4", name: "School of Medical Laboratory Science", slug: "school-of-medical-laboratory-science", image: "", tagline: "", description: "Trains laboratory scientists to support clinical diagnosis.", programmes: "Diploma in Medical Laboratory Technology", dean: "Dr. Bisi Oyelola", email: "mls@oauthc.gov.ng", phone: "+234 036 230 413", accreditation: "Medical Laboratory Science Council of Nigeria", facultyMembers: "", facilities: "", status: "active" },
+  { id: "5", name: "School of Pharmacy Technicians", slug: "school-of-pharmacy-technicians", image: "", tagline: "", description: "Produces pharmacy technicians to support pharmacists in medicine dispensing.", programmes: "Diploma in Pharmacy Technology", dean: "Mr. Adewale Ola", email: "pharmacy-tech@oauthc.gov.ng", phone: "+234 036 230 414", accreditation: "Pharmacists Council of Nigeria", facultyMembers: "", facilities: "", status: "active" },
+  { id: "6", name: "School of Perioperative Nursing", slug: "school-of-perioperative-nursing", image: "", tagline: "", description: "Specialised training for perioperative and theatre nursing practice.", programmes: "Post-Basic Perioperative Nursing", dean: "Mrs. Yetunde Sanni", email: "periop@oauthc.gov.ng", phone: "+234 036 230 415", accreditation: "Nursing and Midwifery Council of Nigeria", facultyMembers: "", facilities: "", status: "inactive" },
 ];
 
 const STATUS_STYLES: Record<SchoolStatus, string> = {
@@ -31,7 +39,10 @@ const STATUS_STYLES: Record<SchoolStatus, string> = {
   inactive: "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
-const EMPTY: Omit<School, "id"> = { name: "", description: "", programmes: "", dean: "", email: "", phone: "", accreditation: "", status: "active" };
+const EMPTY: Omit<School, "id"> = { name: "", slug: "", image: "", tagline: "", description: "", programmes: "", dean: "", email: "", phone: "", accreditation: "", facultyMembers: "", facilities: "", status: "active" };
+
+const inputCls = "border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50";
+const textareaCls = `${inputCls} resize-none`;
 
 export default function SchoolsCMSPage() {
   const [items, setItems] = useState(MOCK);
@@ -56,7 +67,13 @@ export default function SchoolsCMSPage() {
     setPanel(null);
   };
   const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
-  const setField = (k: string, v: string) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
+  const setField = (k: string, v: string) =>
+    setPanel((p) => {
+      if (!p) return p;
+      const update: Record<string, string> = { [k]: v };
+      if (k === "name" && p.mode === "new") update.slug = slugify(v);
+      return { ...p, data: { ...p.data, ...update } };
+    });
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,55 +126,96 @@ export default function SchoolsCMSPage() {
         </div>
 
         {panel ? (
-          <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm flex flex-col max-h-[85vh] overflow-y-auto">
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 flex items-center justify-between px-6 py-4">
               <h2 className="text-gray-900 font-semibold text-base">{panel.mode === "new" ? "New School" : "Edit School"}</h2>
               <button onClick={() => setPanel(null)} className="text-gray-300 hover:text-gray-600 transition"><X size={16} strokeWidth={1.5} /></button>
             </div>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">School Name</label>
-                <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="e.g. School of Nursing" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Description</label>
-                <textarea value={panel.data.description} onChange={(e) => setField("description", e.target.value)} rows={3} placeholder="About this school…" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Programmes Offered</label>
-                <input value={panel.data.programmes} onChange={(e) => setField("programmes", e.target.value)} placeholder="Comma-separated programme names" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+
+            <div className="flex flex-col gap-5 p-6">
+              {/* Image */}
+              <ImageUpload
+                value={panel.data.image}
+                onChange={(v) => setField("image", v)}
+                label="School Image"
+                aspectRatio="landscape"
+                folder="schools"
+              />
+
+              {/* Core */}
+              <div className="flex flex-col gap-4">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Core Details</p>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Dean / Head</label>
-                  <input value={panel.data.dean} onChange={(e) => setField("dean", e.target.value)} placeholder="Name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                  <label className="text-xs font-semibold text-gray-600">School Name</label>
+                  <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="e.g. School of Nursing" className={inputCls} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Phone</label>
-                  <input value={panel.data.phone} onChange={(e) => setField("phone", e.target.value)} placeholder="+234 8xx xxx xxxx" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Email</label>
-                  <input type="email" value={panel.data.email} onChange={(e) => setField("email", e.target.value)} placeholder="school@oauthc.gov.ng" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                  <label className="text-xs font-semibold text-gray-600">Slug</label>
+                  <input value={panel.data.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="auto-generated from name" className={inputCls} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Status</label>
-                  <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 appearance-none">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                  <label className="text-xs font-semibold text-gray-600">Tagline</label>
+                  <input value={panel.data.tagline} onChange={(e) => setField("tagline", e.target.value)} placeholder="Short description for cards" className={inputCls} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Description</label>
+                  <textarea value={panel.data.description} onChange={(e) => setField("description", e.target.value)} rows={3} placeholder="About this school…" className={textareaCls} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Programmes Offered</label>
+                  <input value={panel.data.programmes} onChange={(e) => setField("programmes", e.target.value)} placeholder="Comma-separated programme names" className={inputCls} />
                 </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Accreditation Body</label>
-                <input value={panel.data.accreditation} onChange={(e) => setField("accreditation", e.target.value)} placeholder="Accrediting body name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+
+              {/* Contact */}
+              <div className="flex flex-col gap-4">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Contact & Admin</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Dean / Head</label>
+                    <input value={panel.data.dean} onChange={(e) => setField("dean", e.target.value)} placeholder="Name" className={inputCls} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Phone</label>
+                    <input value={panel.data.phone} onChange={(e) => setField("phone", e.target.value)} placeholder="+234 8xx xxx xxxx" className={inputCls} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Email</label>
+                    <input type="email" value={panel.data.email} onChange={(e) => setField("email", e.target.value)} placeholder="school@oauthc.gov.ng" className={inputCls} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Status</label>
+                    <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className={`${inputCls} appearance-none`}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Accreditation Body</label>
+                  <input value={panel.data.accreditation} onChange={(e) => setField("accreditation", e.target.value)} placeholder="Accrediting body name" className={inputCls} />
+                </div>
               </div>
+
+              {/* Extended */}
+              <div className="flex flex-col gap-4">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Faculty & Facilities</p>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Faculty Members <span className="text-gray-400 font-normal">(format: "Name | Title | Qualification", one per line)</span></label>
+                  <textarea value={panel.data.facultyMembers} onChange={(e) => setField("facultyMembers", e.target.value)} rows={4} placeholder={"Dr. Ada Obi | Senior Lecturer | MBBS, FWACP\nMrs. Bola Ade | Tutor | RN, BNSc"} className={textareaCls} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Facilities <span className="text-gray-400 font-normal">(one per line)</span></label>
+                  <textarea value={panel.data.facilities} onChange={(e) => setField("facilities", e.target.value)} rows={4} placeholder={"Skills Lab\nLibrary\nLecture Halls"} className={textareaCls} />
+                </div>
+              </div>
+
+              <button onClick={save} disabled={!panel.data.name} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+                {panel.mode === "new" ? "Add School" : "Save Changes"}
+              </button>
             </div>
-            <button onClick={save} disabled={!panel.data.name} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {panel.mode === "new" ? "Add School" : "Save Changes"}
-            </button>
           </div>
         ) : (
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center gap-3">

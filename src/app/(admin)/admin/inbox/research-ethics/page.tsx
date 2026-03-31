@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, Microscope, User, Mail, Calendar, ChevronDown } from "lucide-react";
+import { Search, Microscope, User, Mail, Calendar, ChevronDown, Download } from "lucide-react";
 
 type EthicsStatus = "received" | "under-review" | "approved" | "rejected";
 
@@ -34,6 +34,28 @@ const STATUS_STYLES: Record<EthicsStatus, string> = {
 
 const STATUS_OPTIONS: EthicsStatus[] = ["received", "under-review", "approved", "rejected"];
 
+function downloadCSV(data: EthicsSubmission[]) {
+  const headers = ["Applicant", "Email", "Submitted At", "Yes", "No", "N/A", "Status", "Response Note"];
+  const rows = data.map((i) => [
+    i.applicantName,
+    i.email,
+    new Date(i.submittedAt).toLocaleString("en-GB"),
+    i.yesCount,
+    i.noCount,
+    i.naCount,
+    i.status,
+    `"${(i.responseNote ?? "").replace(/"/g, '""')}"`,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `research-ethics-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ResearchEthicsInboxPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<EthicsStatus | "all">("all");
@@ -65,11 +87,20 @@ export default function ResearchEthicsInboxPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-gray-900 text-xl font-bold">Research Ethics Applications</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {items.filter((i) => i.status === "received").length} pending review · {items.length} total
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-gray-900 text-xl font-bold">Research Ethics Applications</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {items.filter((i) => i.status === "received").length} pending review · {items.length} total
+          </p>
+        </div>
+        <button
+          onClick={() => downloadCSV(filtered)}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:border-green-900 hover:text-green-900 transition shadow-sm"
+        >
+          <Download size={14} strokeWidth={1.5} />
+          Export CSV
+        </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">

@@ -2,28 +2,38 @@
 
 import { useState, useMemo } from "react";
 import { Search, Plus, Stethoscope, Pencil, Trash2, X } from "lucide-react";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 type DoctorStatus = "active" | "inactive" | "on-leave";
+type Education = { degree: string; institution: string; year: string };
 
 type Doctor = {
   id: string;
   name: string;
+  slug: string;
+  image: string;
+  gender: "male" | "female";
   specialty: string;
   department: string;
+  center: string;
+  yearsOfExperience: string;
+  languages: string;
+  qualifications: string;
+  bio: string;
+  expertise: string;
+  education: Education[];
+  socialLinkedin: string;
+  socialFacebook: string;
+  socialInstagram: string;
   email: string;
   phone: string;
-  bio: string;
   status: DoctorStatus;
   available: boolean;
 };
 
 const MOCK: Doctor[] = [
-  { id: "1", name: "Dr. Adewale Ojo", specialty: "Cardiology", department: "Cardiology", email: "a.ojo@oauthc.gov.ng", phone: "+234 801 000 0001", bio: "Consultant Cardiologist with over 15 years of experience.", status: "active", available: true },
-  { id: "2", name: "Dr. Ngozi Chukwu", specialty: "Radiology", department: "Radiology", email: "n.chukwu@oauthc.gov.ng", phone: "+234 801 000 0002", bio: "Specialist in diagnostic and interventional radiology.", status: "active", available: true },
-  { id: "3", name: "Dr. Tunde Lawal", specialty: "Neurology", department: "Neurology", email: "t.lawal@oauthc.gov.ng", phone: "+234 801 000 0003", bio: "Neurologist specialising in stroke and epilepsy management.", status: "active", available: false },
-  { id: "4", name: "Dr. Kemi Adeyinka", specialty: "Ophthalmology", department: "Ophthalmology", email: "k.adeyinka@oauthc.gov.ng", phone: "+234 801 000 0004", bio: "Eye specialist with expertise in cataract and glaucoma surgery.", status: "active", available: true },
-  { id: "5", name: "Dr. Yetunde Abiola", specialty: "Oncology", department: "Oncology", email: "y.abiola@oauthc.gov.ng", phone: "+234 801 000 0005", bio: "Medical oncologist focused on breast and colorectal cancers.", status: "on-leave", available: false },
-  { id: "6", name: "Dr. Emeka Nwosu", specialty: "Paediatrics", department: "Paediatrics", email: "e.nwosu@oauthc.gov.ng", phone: "+234 801 000 0006", bio: "Consultant paediatrician with a focus on neonatal care.", status: "active", available: true },
+  { id: "1", name: "Dr. Adewale Ojo", slug: "dr-adewale-ojo", image: "", gender: "male", specialty: "Cardiology", department: "Cardiology", center: "OAUTHC Main Campus", yearsOfExperience: "15", languages: "English, Yoruba", qualifications: "MBBS, FWACP", bio: "Consultant Cardiologist with over 15 years of clinical experience.\nSpecialises in interventional cardiology and heart failure management.", expertise: "Interventional Cardiology\nHeart Failure\nHypertension", education: [{ degree: "MBBS", institution: "Obafemi Awolowo University", year: "2005" }, { degree: "FWACP", institution: "West African College of Physicians", year: "2012" }], socialLinkedin: "", socialFacebook: "", socialInstagram: "", email: "a.ojo@oauthc.gov.ng", phone: "+234 801 000 0001", status: "active", available: true },
+  { id: "2", name: "Dr. Ngozi Chukwu", slug: "dr-ngozi-chukwu", image: "", gender: "female", specialty: "Radiology", department: "Radiology", center: "OAUTHC Main Campus", yearsOfExperience: "10", languages: "English, Igbo", qualifications: "MBBS, FMCR", bio: "Specialist in diagnostic and interventional radiology.", expertise: "CT Imaging\nMRI Interpretation\nInterventional Radiology", education: [{ degree: "MBBS", institution: "University of Nigeria, Nsukka", year: "2008" }], socialLinkedin: "", socialFacebook: "", socialInstagram: "", email: "n.chukwu@oauthc.gov.ng", phone: "+234 801 000 0002", status: "active", available: true },
 ];
 
 const STATUS_STYLES: Record<DoctorStatus, string> = {
@@ -32,7 +42,10 @@ const STATUS_STYLES: Record<DoctorStatus, string> = {
   "on-leave": "bg-amber-50 text-amber-700 border border-amber-100",
 };
 
-const EMPTY: Omit<Doctor, "id"> = { name: "", specialty: "", department: "", email: "", phone: "", bio: "", status: "active", available: true };
+const EMPTY_EDU: Education = { degree: "", institution: "", year: "" };
+const EMPTY: Omit<Doctor, "id"> = { name: "", slug: "", image: "", gender: "male", specialty: "", department: "", center: "", yearsOfExperience: "", languages: "", qualifications: "", bio: "", expertise: "", education: [], socialLinkedin: "", socialFacebook: "", socialInstagram: "", email: "", phone: "", status: "active", available: true };
+
+function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 
 export default function DoctorsCMSPage() {
   const [items, setItems] = useState(MOCK);
@@ -43,26 +56,40 @@ export default function DoctorsCMSPage() {
 
   const filtered = useMemo(() =>
     items.filter((i) => {
-      const matchSearch = i.name.toLowerCase().includes(search.toLowerCase()) || i.specialty.toLowerCase().includes(search.toLowerCase()) || i.department.toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === "all" || i.status === filter;
-      return matchSearch && matchFilter;
+      const matchSearch = i.name.toLowerCase().includes(search.toLowerCase()) || i.specialty.toLowerCase().includes(search.toLowerCase());
+      return matchSearch && (filter === "all" || i.status === filter);
     }), [items, search, filter]);
 
-  const openNew = () => setPanel({ mode: "new", data: { ...EMPTY } });
+  const openNew = () => setPanel({ mode: "new", data: { ...EMPTY, education: [] } });
   const openEdit = (item: Doctor) => setPanel({ mode: "edit", data: { ...item } });
 
   const save = () => {
     if (!panel) return;
-    if (panel.mode === "new") {
-      setItems((prev) => [{ ...panel.data, id: String(Date.now()) } as Doctor, ...prev]);
-    } else {
-      setItems((prev) => prev.map((i) => i.id === panel.data.id ? { ...panel.data } as Doctor : i));
-    }
+    if (panel.mode === "new") setItems((prev) => [{ ...panel.data, id: String(Date.now()) } as Doctor, ...prev]);
+    else setItems((prev) => prev.map((i) => i.id === panel.data.id ? { ...panel.data } as Doctor : i));
     setPanel(null);
   };
 
   const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
-  const setField = (k: string, v: string | boolean) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
+
+  const setField = (k: string, v: string | boolean) => setPanel((p) => {
+    if (!p) return p;
+    const next = { ...p, data: { ...p.data, [k]: v } };
+    if (k === "name" && p.mode === "new") next.data.slug = slugify(v as string);
+    return next;
+  });
+
+  const setEdu = (idx: number, k: keyof Education, v: string) => setPanel((p) => {
+    if (!p) return p;
+    const education = [...p.data.education];
+    education[idx] = { ...education[idx], [k]: v };
+    return { ...p, data: { ...p.data, education } };
+  });
+
+  const addEdu = () => setPanel((p) => p ? { ...p, data: { ...p.data, education: [...p.data.education, { ...EMPTY_EDU }] } } : p);
+  const removeEdu = (idx: number) => setPanel((p) => p ? { ...p, data: { ...p.data, education: p.data.education.filter((_, i) => i !== idx) } } : p);
+
+  const inputCls = "border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50";
 
   return (
     <div className="flex flex-col gap-6">
@@ -88,8 +115,8 @@ export default function DoctorsCMSPage() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4 items-start">
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      <div className="grid lg:grid-cols-5 gap-4 items-start">
+        <div className="lg:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
           {filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No doctors found.</p>
           ) : (
@@ -101,8 +128,8 @@ export default function DoctorsCMSPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-900 font-semibold text-sm">{item.name}</p>
-                    <p className="text-gray-500 text-xs">{item.specialty} · {item.department}</p>
-                    <div className="flex items-center gap-3 mt-1.5">
+                    <p className="text-gray-500 text-xs">{item.specialty} · {item.yearsOfExperience}yr</p>
+                    <div className="flex items-center gap-2 mt-1.5">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[item.status]}`}>{item.status.replace("-", " ")}</span>
                       {item.available && <span className="text-[10px] text-green-700 font-semibold">Available</span>}
                     </div>
@@ -118,64 +145,138 @@ export default function DoctorsCMSPage() {
         </div>
 
         {panel ? (
-          <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+          <div className="lg:col-span-3 bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between sticky top-0 bg-white pb-3 border-b border-gray-50 z-10">
               <h2 className="text-gray-900 font-semibold text-base">{panel.mode === "new" ? "New Doctor" : "Edit Doctor"}</h2>
               <button onClick={() => setPanel(null)} className="text-gray-300 hover:text-gray-600 transition"><X size={16} strokeWidth={1.5} /></button>
             </div>
-            <div className="flex flex-col gap-4">
+
+            <ImageUpload value={panel.data.image} onChange={(url) => setField("image", url)} label="Profile Photo" aspectRatio="square" folder="oauthc/doctors" />
+
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Basic Info</p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Full Name</label>
+              <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="Dr. Full Name" className={inputCls} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Full Name</label>
-                <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="Dr. Full Name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Specialty</label>
-                  <input value={panel.data.specialty} onChange={(e) => setField("specialty", e.target.value)} placeholder="e.g. Cardiology" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Department</label>
-                  <input value={panel.data.department} onChange={(e) => setField("department", e.target.value)} placeholder="Department" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Email</label>
-                  <input type="email" value={panel.data.email} onChange={(e) => setField("email", e.target.value)} placeholder="email@oauthc.gov.ng" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Phone</label>
-                  <input value={panel.data.phone} onChange={(e) => setField("phone", e.target.value)} placeholder="+234 8xx xxx xxxx" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
-                </div>
+                <label className="text-xs font-semibold text-gray-600">Slug</label>
+                <input value={panel.data.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="url-friendly-name" className={inputCls} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Bio</label>
-                <textarea value={panel.data.bio} onChange={(e) => setField("bio", e.target.value)} rows={3} placeholder="Short biography…" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
+                <label className="text-xs font-semibold text-gray-600">Gender</label>
+                <select value={panel.data.gender} onChange={(e) => setField("gender", e.target.value)} className={`${inputCls} appearance-none`}>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Status</label>
-                  <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 appearance-none">
-                    <option value="active">Active</option>
-                    <option value="on-leave">On Leave</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Availability</label>
-                  <select value={panel.data.available ? "yes" : "no"} onChange={(e) => setField("available", e.target.value === "yes")} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 appearance-none">
-                    <option value="yes">Available</option>
-                    <option value="no">Unavailable</option>
-                  </select>
-                </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Specialty</label>
+                <input value={panel.data.specialty} onChange={(e) => setField("specialty", e.target.value)} placeholder="e.g. Cardiology" className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Department</label>
+                <input value={panel.data.department} onChange={(e) => setField("department", e.target.value)} placeholder="Department" className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Centre / Hospital</label>
+                <input value={panel.data.center} onChange={(e) => setField("center", e.target.value)} placeholder="OAUTHC Main Campus" className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Years of Experience</label>
+                <input type="number" min="0" value={panel.data.yearsOfExperience} onChange={(e) => setField("yearsOfExperience", e.target.value)} placeholder="15" className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Languages <span className="font-normal text-gray-400">(comma-sep.)</span></label>
+                <input value={panel.data.languages} onChange={(e) => setField("languages", e.target.value)} placeholder="English, Yoruba" className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Qualifications <span className="font-normal text-gray-400">(comma-sep.)</span></label>
+                <input value={panel.data.qualifications} onChange={(e) => setField("qualifications", e.target.value)} placeholder="MBBS, FWACP" className={inputCls} />
               </div>
             </div>
+
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pt-1">Contact</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Email</label>
+                <input type="email" value={panel.data.email} onChange={(e) => setField("email", e.target.value)} placeholder="doctor@oauthc.gov.ng" className={inputCls} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Phone</label>
+                <input value={panel.data.phone} onChange={(e) => setField("phone", e.target.value)} placeholder="+234 8xx xxx xxxx" className={inputCls} />
+              </div>
+            </div>
+
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pt-1">Profile Content</p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Bio <span className="font-normal text-gray-400">(one paragraph per line)</span></label>
+              <textarea value={panel.data.bio} onChange={(e) => setField("bio", e.target.value)} rows={4} placeholder={"Paragraph 1\nParagraph 2"} className={`${inputCls} resize-none`} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Areas of Expertise <span className="font-normal text-gray-400">(one per line)</span></label>
+              <textarea value={panel.data.expertise} onChange={(e) => setField("expertise", e.target.value)} rows={3} placeholder={"Interventional Cardiology\nHeart Failure"} className={`${inputCls} resize-none`} />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Education</p>
+              <button type="button" onClick={addEdu} className="text-xs text-green-900 font-semibold hover:underline">+ Add</button>
+            </div>
+            {panel.data.education.map((edu, idx) => (
+              <div key={idx} className="grid grid-cols-7 gap-2 items-end">
+                <div className="col-span-2 flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-500">Degree</label>
+                  <input value={edu.degree} onChange={(e) => setEdu(idx, "degree", e.target.value)} placeholder="MBBS" className="border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                </div>
+                <div className="col-span-3 flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-500">Institution</label>
+                  <input value={edu.institution} onChange={(e) => setEdu(idx, "institution", e.target.value)} placeholder="University name" className="border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                </div>
+                <div className="col-span-1 flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold text-gray-500">Year</label>
+                  <input value={edu.year} onChange={(e) => setEdu(idx, "year", e.target.value)} placeholder="2010" className="border border-gray-200 rounded-lg px-2.5 py-2 text-xs text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                </div>
+                <div className="col-span-1 flex items-end pb-1.5">
+                  <button type="button" onClick={() => removeEdu(idx)} className="text-gray-300 hover:text-red-500 transition"><X size={13} strokeWidth={1.5} /></button>
+                </div>
+              </div>
+            ))}
+
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pt-1">Social Links</p>
+            <div className="grid grid-cols-3 gap-3">
+              {(["socialLinkedin", "socialFacebook", "socialInstagram"] as const).map((key) => (
+                <div key={key} className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">{key.replace("social", "")}</label>
+                  <input value={panel.data[key] ?? ""} onChange={(e) => setField(key, e.target.value)} placeholder="https://…" className={inputCls} />
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pt-1">Status</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Status</label>
+                <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className={`${inputCls} appearance-none`}>
+                  <option value="active">Active</option>
+                  <option value="on-leave">On Leave</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Availability</label>
+                <select value={panel.data.available ? "yes" : "no"} onChange={(e) => setField("available", e.target.value === "yes")} className={`${inputCls} appearance-none`}>
+                  <option value="yes">Available</option>
+                  <option value="no">Unavailable</option>
+                </select>
+              </div>
+            </div>
+
             <button onClick={save} disabled={!panel.data.name} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
               {panel.mode === "new" ? "Add Doctor" : "Save Changes"}
             </button>
           </div>
         ) : (
-          <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center gap-3">
+          <div className="lg:col-span-3 bg-white border border-gray-100 rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center gap-3">
             <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center">
               <Stethoscope size={20} strokeWidth={1.5} className="text-gray-300" />
             </div>

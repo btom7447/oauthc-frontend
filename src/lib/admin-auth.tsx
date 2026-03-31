@@ -59,6 +59,7 @@ type AuthContextType = {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => void;
+  updateUser: (patch: Partial<AuthUser>) => void;
   isLoading: boolean;
 };
 
@@ -98,8 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("oauthc_admin_user");
   };
 
+  const updateUser = (patch: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...patch };
+      localStorage.setItem("oauthc_admin_user", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -149,7 +159,7 @@ const GENERAL_ACCESS: Record<GeneralFeature, Role[]> = {
   cms:          ["admin", "staff"],
   users:        ["admin"],
   appointments: ["admin", "staff", "doctor"],
-  profile:      ["doctor"],
+  profile:      ["admin", "staff", "doctor"],
   inbox:        ["admin", "staff"],
 };
 

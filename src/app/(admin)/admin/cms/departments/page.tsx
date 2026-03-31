@@ -2,12 +2,15 @@
 
 import { useState, useMemo } from "react";
 import { Search, Plus, Building2, Pencil, Trash2, X } from "lucide-react";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 type DeptStatus = "active" | "inactive";
 
 type Department = {
   id: string;
   name: string;
+  slug: string;
+  image: string;
   description: string;
   head: string;
   phone: string;
@@ -16,14 +19,16 @@ type Department = {
   status: DeptStatus;
 };
 
+function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
+
 const MOCK: Department[] = [
-  { id: "1", name: "Cardiology", description: "Diagnosis and treatment of heart and cardiovascular diseases.", head: "Dr. Adewale Ojo", phone: "+234 800 001 0001", email: "cardiology@oauthc.gov.ng", location: "Block A, 1st Floor", status: "active" },
-  { id: "2", name: "Radiology", description: "Diagnostic imaging including X-ray, CT, MRI, and ultrasound.", head: "Dr. Ngozi Chukwu", phone: "+234 800 001 0002", email: "radiology@oauthc.gov.ng", location: "Block B, Ground Floor", status: "active" },
-  { id: "3", name: "Neurology", description: "Treatment of disorders of the nervous system.", head: "Dr. Tunde Lawal", phone: "+234 800 001 0003", email: "neurology@oauthc.gov.ng", location: "Block C, 2nd Floor", status: "active" },
-  { id: "4", name: "Ophthalmology", description: "Eye care including vision testing, surgery, and treatment.", head: "Dr. Kemi Adeyinka", phone: "+234 800 001 0004", email: "ophthalmology@oauthc.gov.ng", location: "Block D, 1st Floor", status: "active" },
-  { id: "5", name: "Oncology", description: "Cancer diagnosis, chemotherapy, and oncology care.", head: "Dr. Yetunde Abiola", phone: "+234 800 001 0005", email: "oncology@oauthc.gov.ng", location: "Block E, 2nd Floor", status: "active" },
-  { id: "6", name: "Paediatrics", description: "Medical care for infants, children, and adolescents.", head: "Dr. Emeka Nwosu", phone: "+234 800 001 0006", email: "paediatrics@oauthc.gov.ng", location: "Block F, Ground Floor", status: "active" },
-  { id: "7", name: "Dermatology", description: "Skin, hair, and nail conditions diagnosis and treatment.", head: "Dr. Bimpe Afolabi", phone: "+234 800 001 0007", email: "dermatology@oauthc.gov.ng", location: "Block A, 2nd Floor", status: "inactive" },
+  { id: "1", name: "Cardiology", slug: "cardiology", image: "", description: "Diagnosis and treatment of heart and cardiovascular diseases.", head: "Dr. Adewale Ojo", phone: "+234 800 001 0001", email: "cardiology@oauthc.gov.ng", location: "Block A, 1st Floor", status: "active" },
+  { id: "2", name: "Radiology", slug: "radiology", image: "", description: "Diagnostic imaging including X-ray, CT, MRI, and ultrasound.", head: "Dr. Ngozi Chukwu", phone: "+234 800 001 0002", email: "radiology@oauthc.gov.ng", location: "Block B, Ground Floor", status: "active" },
+  { id: "3", name: "Neurology", slug: "neurology", image: "", description: "Treatment of disorders of the nervous system.", head: "Dr. Tunde Lawal", phone: "+234 800 001 0003", email: "neurology@oauthc.gov.ng", location: "Block C, 2nd Floor", status: "active" },
+  { id: "4", name: "Ophthalmology", slug: "ophthalmology", image: "", description: "Eye care including vision testing, surgery, and treatment.", head: "Dr. Kemi Adeyinka", phone: "+234 800 001 0004", email: "ophthalmology@oauthc.gov.ng", location: "Block D, 1st Floor", status: "active" },
+  { id: "5", name: "Oncology", slug: "oncology", image: "", description: "Cancer diagnosis, chemotherapy, and oncology care.", head: "Dr. Yetunde Abiola", phone: "+234 800 001 0005", email: "oncology@oauthc.gov.ng", location: "Block E, 2nd Floor", status: "active" },
+  { id: "6", name: "Paediatrics", slug: "paediatrics", image: "", description: "Medical care for infants, children, and adolescents.", head: "Dr. Emeka Nwosu", phone: "+234 800 001 0006", email: "paediatrics@oauthc.gov.ng", location: "Block F, Ground Floor", status: "active" },
+  { id: "7", name: "Dermatology", slug: "dermatology", image: "", description: "Skin, hair, and nail conditions diagnosis and treatment.", head: "Dr. Bimpe Afolabi", phone: "+234 800 001 0007", email: "dermatology@oauthc.gov.ng", location: "Block A, 2nd Floor", status: "inactive" },
 ];
 
 const STATUS_STYLES: Record<DeptStatus, string> = {
@@ -31,7 +36,7 @@ const STATUS_STYLES: Record<DeptStatus, string> = {
   inactive: "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
-const EMPTY: Omit<Department, "id"> = { name: "", description: "", head: "", phone: "", email: "", location: "", status: "active" };
+const EMPTY: Omit<Department, "id"> = { name: "", slug: "", image: "", description: "", head: "", phone: "", email: "", location: "", status: "active" };
 
 export default function DepartmentsCMSPage() {
   const [items, setItems] = useState(MOCK);
@@ -56,7 +61,12 @@ export default function DepartmentsCMSPage() {
     setPanel(null);
   };
   const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
-  const setField = (k: string, v: string) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
+  const setField = (k: string, v: string) => setPanel((p) => {
+    if (!p) return p;
+    const next = { ...p, data: { ...p.data, [k]: v } };
+    if (k === "name" && p.mode === "new") next.data.slug = slugify(v);
+    return next;
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -112,15 +122,22 @@ export default function DepartmentsCMSPage() {
         </div>
 
         {panel ? (
-          <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between sticky top-0 bg-white pb-3 border-b border-gray-50 z-10">
               <h2 className="text-gray-900 font-semibold text-base">{panel.mode === "new" ? "New Department" : "Edit Department"}</h2>
               <button onClick={() => setPanel(null)} className="text-gray-300 hover:text-gray-600 transition"><X size={16} strokeWidth={1.5} /></button>
             </div>
+            <ImageUpload value={panel.data.image} onChange={(url) => setField("image", url)} label="Department Image" folder="oauthc/departments" />
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Name</label>
-                <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="Department name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Name</label>
+                  <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="Department name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Slug</label>
+                  <input value={panel.data.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="url-slug" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Description</label>
