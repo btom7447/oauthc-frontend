@@ -2,6 +2,7 @@
 
 import useEmblaCarousel from "embla-carousel-react";
 import { useEffect, useState } from "react";
+import { Stethoscope } from "lucide-react";
 import ProfessionalCard, { ProfessionalCardSkeleton } from "./ProfessionalCard";
 import { api } from "@/lib/api-client";
 
@@ -78,6 +79,13 @@ export default function ProfessionalsSection() {
             {Array.from({ length: 3 }).map((_, i) => (
               <ProfessionalCardSkeleton key={i} />
             ))}
+          </div>
+        ) : data.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+              <Stethoscope size={24} strokeWidth={1.5} className="text-gray-300" />
+            </div>
+            <p className="text-gray-500 text-sm">Our doctor profiles are being updated. Check back soon.</p>
           </div>
         ) : (
           <div className="overflow-hidden" ref={emblaRef}>
