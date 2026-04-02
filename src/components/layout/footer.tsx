@@ -7,6 +7,8 @@ import { FaFacebook, FaInstagram, FaYoutube } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import { IoSend } from "react-icons/io5";
 import AppointmentPoster from "../shared/AppointmentPoster";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,11 +78,19 @@ const Footer: React.FC = () => {
 
   const isActive = (href: string): boolean => pathname === href;
 
-  const handleSubscribe = (): void => {
+  const [subscribing, setSubscribing] = useState(false);
+
+  const handleSubscribe = async (): Promise<void> => {
     if (!email.trim()) return;
-    // TODO: wire up to your newsletter API
-    console.log("Newsletter subscription:", email);
-    setEmail("");
+    setSubscribing(true);
+    const res = await api.post("/newsletter/subscribe", { email }, { auth: false });
+    setSubscribing(false);
+    if (res.ok) {
+      toast.success("Subscribed successfully!");
+      setEmail("");
+    } else {
+      toast.error(res.error || "Failed to subscribe.");
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -196,8 +206,9 @@ const Footer: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSubscribe}
+                disabled={subscribing}
                 aria-label="Subscribe to newsletter"
-                className="px-3 py-2 text-green-700 hover:text-green-900 transition-colors duration-200 cursor-pointer"
+                className="px-3 py-2 text-green-700 hover:text-green-900 transition-colors duration-200 cursor-pointer disabled:opacity-50"
               >
                 <IoSend size={18} />
               </button>

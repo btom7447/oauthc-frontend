@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Plus, Building2, Pencil, Trash2, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Plus, Building2, Pencil, Trash2, X, Loader2, PlusCircle } from "lucide-react";
 import ImageUpload from "@/components/admin/ImageUpload";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
 
 type DeptStatus = "active" | "inactive";
+
+type Facility = { title: string; detail: string };
+type Procedure = { name: string; description: string };
 
 type Department = {
   id: string;
@@ -12,6 +17,10 @@ type Department = {
   slug: string;
   image: string;
   description: string;
+  overview: string[];
+  conditions: string[];
+  facilities: Facility[];
+  procedures: Procedure[];
   head: string;
   phone: string;
   email: string;
@@ -21,52 +30,120 @@ type Department = {
 
 function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 
-const MOCK: Department[] = [
-  { id: "1", name: "Cardiology", slug: "cardiology", image: "", description: "Diagnosis and treatment of heart and cardiovascular diseases.", head: "Dr. Adewale Ojo", phone: "+234 800 001 0001", email: "cardiology@oauthc.gov.ng", location: "Block A, 1st Floor", status: "active" },
-  { id: "2", name: "Radiology", slug: "radiology", image: "", description: "Diagnostic imaging including X-ray, CT, MRI, and ultrasound.", head: "Dr. Ngozi Chukwu", phone: "+234 800 001 0002", email: "radiology@oauthc.gov.ng", location: "Block B, Ground Floor", status: "active" },
-  { id: "3", name: "Neurology", slug: "neurology", image: "", description: "Treatment of disorders of the nervous system.", head: "Dr. Tunde Lawal", phone: "+234 800 001 0003", email: "neurology@oauthc.gov.ng", location: "Block C, 2nd Floor", status: "active" },
-  { id: "4", name: "Ophthalmology", slug: "ophthalmology", image: "", description: "Eye care including vision testing, surgery, and treatment.", head: "Dr. Kemi Adeyinka", phone: "+234 800 001 0004", email: "ophthalmology@oauthc.gov.ng", location: "Block D, 1st Floor", status: "active" },
-  { id: "5", name: "Oncology", slug: "oncology", image: "", description: "Cancer diagnosis, chemotherapy, and oncology care.", head: "Dr. Yetunde Abiola", phone: "+234 800 001 0005", email: "oncology@oauthc.gov.ng", location: "Block E, 2nd Floor", status: "active" },
-  { id: "6", name: "Paediatrics", slug: "paediatrics", image: "", description: "Medical care for infants, children, and adolescents.", head: "Dr. Emeka Nwosu", phone: "+234 800 001 0006", email: "paediatrics@oauthc.gov.ng", location: "Block F, Ground Floor", status: "active" },
-  { id: "7", name: "Dermatology", slug: "dermatology", image: "", description: "Skin, hair, and nail conditions diagnosis and treatment.", head: "Dr. Bimpe Afolabi", phone: "+234 800 001 0007", email: "dermatology@oauthc.gov.ng", location: "Block A, 2nd Floor", status: "inactive" },
-];
-
 const STATUS_STYLES: Record<DeptStatus, string> = {
   active: "bg-green-50 text-green-800 border border-green-100",
   inactive: "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
-const EMPTY: Omit<Department, "id"> = { name: "", slug: "", image: "", description: "", head: "", phone: "", email: "", location: "", status: "active" };
+const EMPTY: Omit<Department, "id"> = { name: "", slug: "", image: "", description: "", overview: [], conditions: [], facilities: [], procedures: [], head: "", phone: "", email: "", location: "", status: "active" };
 
 export default function DepartmentsCMSPage() {
-  const [items, setItems] = useState(MOCK);
+  const [items, setItems] = useState<Department[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<DeptStatus | "all">("all");
   const [panel, setPanel] = useState<{ mode: "new" | "edit"; data: Omit<Department, "id"> & { id?: string } } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const filtered = useMemo(() =>
-    items.filter((i) => {
-      const matchSearch = i.name.toLowerCase().includes(search.toLowerCase()) || i.head.toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === "all" || i.status === filter;
-      return matchSearch && matchFilter;
-    }), [items, search, filter]);
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("limit", "100");
+    if (search) params.set("search", search);
+    if (filter !== "all") params.set("status", filter);
+
+    const res = await api.get<Department[]>(`/admin/cms/departments?${params.toString()}`);
+    if (res.ok && res.data) setItems(res.data);
+    setLoading(false);
+  }, [search, filter]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const openNew = () => setPanel({ mode: "new", data: { ...EMPTY } });
   const openEdit = (item: Department) => setPanel({ mode: "edit", data: { ...item } });
-  const save = () => {
+
+  const save = async () => {
     if (!panel) return;
-    if (panel.mode === "new") setItems((prev) => [{ ...panel.data, id: String(Date.now()) } as Department, ...prev]);
-    else setItems((prev) => prev.map((i) => i.id === panel.data.id ? { ...panel.data } as Department : i));
-    setPanel(null);
+    setSaving(true);
+
+    if (panel.mode === "new") {
+      const res = await api.post<Department>("/admin/cms/departments", panel.data);
+      if (res.ok && res.data) {
+        setItems((prev) => [res.data!, ...prev]);
+        toast.success("Department created");
+        setPanel(null);
+      } else {
+        toast.error(res.error || "Failed to create");
+      }
+    } else {
+      const res = await api.patch<Department>(`/admin/cms/departments/${panel.data.id}`, panel.data);
+      if (res.ok && res.data) {
+        setItems((prev) => prev.map((i) => i.id === panel.data.id ? res.data! : i));
+        toast.success("Department updated");
+        setPanel(null);
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    }
+    setSaving(false);
   };
-  const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
-  const setField = (k: string, v: string) => setPanel((p) => {
+
+  const remove = async (id: string) => {
+    const res = await api.del(`/admin/cms/departments/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Department deleted");
+      if (panel?.data.id === id) setPanel(null);
+    } else {
+      toast.error(res.error || "Failed to delete");
+    }
+    setDeleteId(null);
+  };
+
+  const setField = (k: string, v: any) => setPanel((p) => {
     if (!p) return p;
     const next = { ...p, data: { ...p.data, [k]: v } };
     if (k === "name" && p.mode === "new") next.data.slug = slugify(v);
     return next;
   });
+
+  /* ── Array helpers ── */
+  const addOverview = () => setPanel((p) => p ? { ...p, data: { ...p.data, overview: [...p.data.overview, ""] } } : p);
+  const setOverview = (i: number, v: string) => setPanel((p) => {
+    if (!p) return p;
+    const arr = [...p.data.overview];
+    arr[i] = v;
+    return { ...p, data: { ...p.data, overview: arr } };
+  });
+  const removeOverview = (i: number) => setPanel((p) => p ? { ...p, data: { ...p.data, overview: p.data.overview.filter((_, idx) => idx !== i) } } : p);
+
+  const addCondition = () => setPanel((p) => p ? { ...p, data: { ...p.data, conditions: [...p.data.conditions, ""] } } : p);
+  const setCondition = (i: number, v: string) => setPanel((p) => {
+    if (!p) return p;
+    const arr = [...p.data.conditions];
+    arr[i] = v;
+    return { ...p, data: { ...p.data, conditions: arr } };
+  });
+  const removeCondition = (i: number) => setPanel((p) => p ? { ...p, data: { ...p.data, conditions: p.data.conditions.filter((_, idx) => idx !== i) } } : p);
+
+  const addFacility = () => setPanel((p) => p ? { ...p, data: { ...p.data, facilities: [...p.data.facilities, { title: "", detail: "" }] } } : p);
+  const setFacility = (i: number, k: "title" | "detail", v: string) => setPanel((p) => {
+    if (!p) return p;
+    const arr = [...p.data.facilities];
+    arr[i] = { ...arr[i], [k]: v };
+    return { ...p, data: { ...p.data, facilities: arr } };
+  });
+  const removeFacility = (i: number) => setPanel((p) => p ? { ...p, data: { ...p.data, facilities: p.data.facilities.filter((_, idx) => idx !== i) } } : p);
+
+  const addProcedure = () => setPanel((p) => p ? { ...p, data: { ...p.data, procedures: [...p.data.procedures, { name: "", description: "" }] } } : p);
+  const setProcedure = (i: number, k: "name" | "description", v: string) => setPanel((p) => {
+    if (!p) return p;
+    const arr = [...p.data.procedures];
+    arr[i] = { ...arr[i], [k]: v };
+    return { ...p, data: { ...p.data, procedures: arr } };
+  });
+  const removeProcedure = (i: number) => setPanel((p) => p ? { ...p, data: { ...p.data, procedures: p.data.procedures.filter((_, idx) => idx !== i) } } : p);
 
   return (
     <div className="flex flex-col gap-6">
@@ -94,11 +171,24 @@ export default function DepartmentsCMSPage() {
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-5 py-4 animate-pulse">
+                  <div className="w-9 h-9 rounded-xl bg-gray-200 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="h-3.5 w-36 bg-gray-200 rounded mb-2" />
+                    <div className="h-2.5 w-52 bg-gray-100 rounded mb-2" />
+                    <div className="flex gap-3"><div className="h-4 w-14 bg-gray-100 rounded-full" /><div className="h-3 w-24 bg-gray-100 rounded" /></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : items.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No departments found.</p>
           ) : (
             <ul className="divide-y divide-gray-50">
-              {filtered.map((item) => (
+              {items.map((item) => (
                 <li key={item.id} className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition">
                   <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 mt-0.5">
                     <Building2 size={14} strokeWidth={1.5} className="text-blue-700" />
@@ -143,6 +233,78 @@ export default function DepartmentsCMSPage() {
                 <label className="text-xs font-semibold text-gray-600">Description</label>
                 <textarea value={panel.data.description} onChange={(e) => setField("description", e.target.value)} rows={3} placeholder="Brief description…" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
               </div>
+              {/* Overview paragraphs */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-600">Overview Paragraphs</label>
+                  <button type="button" onClick={addOverview} className="flex items-center gap-1 text-xs text-green-900 hover:text-green-700 font-medium transition">
+                    <PlusCircle size={12} strokeWidth={2} /> Add
+                  </button>
+                </div>
+                {panel.data.overview.map((p, i) => (
+                  <div key={i} className="flex gap-2">
+                    <textarea value={p} onChange={(e) => setOverview(i, e.target.value)} rows={2} placeholder={`Paragraph ${i + 1}…`} className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
+                    <button type="button" onClick={() => removeOverview(i)} className="text-gray-300 hover:text-red-500 transition shrink-0 mt-1"><X size={14} strokeWidth={1.5} /></button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Conditions */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-600">Conditions Treated</label>
+                  <button type="button" onClick={addCondition} className="flex items-center gap-1 text-xs text-green-900 hover:text-green-700 font-medium transition">
+                    <PlusCircle size={12} strokeWidth={2} /> Add
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {panel.data.conditions.map((c, i) => (
+                    <div key={i} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg pl-3 pr-1.5 py-1.5">
+                      <input value={c} onChange={(e) => setCondition(i, e.target.value)} placeholder="Condition…" className="border-none bg-transparent text-sm text-gray-700 outline-none w-40" />
+                      <button type="button" onClick={() => removeCondition(i)} className="text-gray-300 hover:text-red-500 transition"><X size={12} strokeWidth={1.5} /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Facilities */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-600">Facilities & Equipment</label>
+                  <button type="button" onClick={addFacility} className="flex items-center gap-1 text-xs text-green-900 hover:text-green-700 font-medium transition">
+                    <PlusCircle size={12} strokeWidth={2} /> Add
+                  </button>
+                </div>
+                {panel.data.facilities.map((f, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <input value={f.title} onChange={(e) => setFacility(i, "title", e.target.value)} placeholder="Title" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                      <input value={f.detail} onChange={(e) => setFacility(i, "detail", e.target.value)} placeholder="Detail" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                    </div>
+                    <button type="button" onClick={() => removeFacility(i)} className="text-gray-300 hover:text-red-500 transition shrink-0 mt-2"><X size={14} strokeWidth={1.5} /></button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Procedures */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-600">Procedures & Services</label>
+                  <button type="button" onClick={addProcedure} className="flex items-center gap-1 text-xs text-green-900 hover:text-green-700 font-medium transition">
+                    <PlusCircle size={12} strokeWidth={2} /> Add
+                  </button>
+                </div>
+                {panel.data.procedures.map((pr, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <input value={pr.name} onChange={(e) => setProcedure(i, "name", e.target.value)} placeholder="Procedure name" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                      <textarea value={pr.description} onChange={(e) => setProcedure(i, "description", e.target.value)} rows={2} placeholder="Description…" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
+                    </div>
+                    <button type="button" onClick={() => removeProcedure(i)} className="text-gray-300 hover:text-red-500 transition shrink-0 mt-2"><X size={14} strokeWidth={1.5} /></button>
+                  </div>
+                ))}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-600">Head of Dept.</label>
@@ -171,8 +333,8 @@ export default function DepartmentsCMSPage() {
                 </select>
               </div>
             </div>
-            <button onClick={save} disabled={!panel.data.name} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {panel.mode === "new" ? "Create Department" : "Save Changes"}
+            <button onClick={save} disabled={!panel.data.name || saving} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+              {saving ? "Saving…" : panel.mode === "new" ? "Create Department" : "Save Changes"}
             </button>
           </div>
         ) : (

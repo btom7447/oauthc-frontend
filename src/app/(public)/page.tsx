@@ -10,38 +10,10 @@ import ProfessionalsSection from "@/components/shared/ProfessionalSection";
 import TestimonialsSection from "@/components/shared/testimonials";
 
 export default function HomePage() {
-
-  const announcements = [
-    {
-      id: 1,
-      name: "Welcome to OAUTHC",
-      content: "Serving excellence in healthcare.",
-      image: "/images/hero-carousel/image-one.png",
-      link: "/about",
-      featured: true,
-    },
-    {
-      id: 2,
-      name: "Book Your Appointment Online — Now Available",
-      content:
-        "You can now schedule consultations with our specialists directly from our website. Select your preferred date, time, and department — all from the comfort of your home. No queues, no calls needed.",
-      image: "/images/hero-carousel/image-one.png",
-      link: "/#bookingForm",
-    },
-    {
-      id: 3,
-      name: "Free Community Health Outreach — April 2026",
-      content:
-        "OAUTHC is hosting a free health screening and outreach programme for residents of Ile-Ife and environs. Services include blood pressure checks, blood sugar tests, eye screening, and free consultations. Join us at the OAUTHC Sports Complex on April 19, 2026.",
-      image: "/images/hero-carousel/image-one.png",
-      link: "/events/health-outreach-april-2026",
-    },
-  ];
-
   return (
     <>
       <HeroCarousel />
-      <AnnouncementCarousel items={announcements} />
+      <AnnouncementCarousel />
       <WelcomeSection />
       <LearnMoreSection />
       <DepartmentsSection />

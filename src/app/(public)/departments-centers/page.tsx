@@ -6,50 +6,32 @@ import FilteredGrid from "@/components/shared/FilteredGrid";
 import DepartmentCard from "@/components/cards/DepartmentCard";
 import DepartmentGridSkeleton from "@/components/skeleton/DepartmentGridSkeleton";
 import TestimonialsSection from "@/components/shared/testimonials";
+import { api } from "@/lib/api-client";
 
 type Department = {
+  id: string;
   name: string;
   slug: string;
   image: string;
 };
 
-const ALL_DEPARTMENTS: Department[] = [
-  { name: "Cardiology", slug: "cardiology", image: "/images/departments/cardiology.jpg" },
-  { name: "Neurology", slug: "neurology", image: "/images/departments/placeholder.jpg" },
-  { name: "Oncology", slug: "oncology", image: "/images/departments/placeholder.jpg" },
-  { name: "Paediatrics", slug: "paediatrics", image: "/images/departments/placeholder.jpg" },
-  { name: "Obstetrics & Gynaecology", slug: "obstetrics-gynaecology", image: "/images/departments/placeholder.jpg" },
-  { name: "Orthopaedics", slug: "orthopaedics", image: "/images/departments/placeholder.jpg" },
-  { name: "Radiology", slug: "radiology", image: "/images/departments/placeholder.jpg" },
-  { name: "Ophthalmology", slug: "ophthalmology", image: "/images/departments/placeholder.jpg" },
-  { name: "Dermatology", slug: "dermatology", image: "/images/departments/placeholder.jpg" },
-  { name: "ENT", slug: "ent", image: "/images/departments/placeholder.jpg" },
-  { name: "General Surgery", slug: "general-surgery", image: "/images/departments/placeholder.jpg" },
-  { name: "Urology", slug: "urology", image: "/images/departments/placeholder.jpg" },
-  { name: "Psychiatry", slug: "psychiatry", image: "/images/departments/placeholder.jpg" },
-  { name: "Haematology", slug: "haematology", image: "/images/departments/placeholder.jpg" },
-  { name: "Endocrinology", slug: "endocrinology", image: "/images/departments/placeholder.jpg" },
-  { name: "Gastroenterology", slug: "gastroenterology", image: "/images/departments/placeholder.jpg" },
-  { name: "Nephrology", slug: "nephrology", image: "/images/departments/placeholder.jpg" },
-  { name: "Pulmonology", slug: "pulmonology", image: "/images/departments/placeholder.jpg" },
-  { name: "Rheumatology", slug: "rheumatology", image: "/images/departments/placeholder.jpg" },
-  { name: "Anaesthesia", slug: "anaesthesia", image: "/images/departments/placeholder.jpg" },
-];
-
 const PER_PAGE = 12;
 
 export default function DepartmentsCentersPage() {
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
+    (async () => {
+      const res = await api.get<Department[]>("/cms/departments?limit=100", { auth: false });
+      if (res.ok && res.data) setDepartments(res.data);
+      setIsLoading(false);
+    })();
   }, []);
 
-  // Reset to page 1 on search or sort change
   const handleSearch = (q: string) => {
     setSearchQuery(q);
     setCurrentPage(1);
@@ -63,8 +45,8 @@ export default function DepartmentsCentersPage() {
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
     const results = q
-      ? ALL_DEPARTMENTS.filter((d) => d.name.toLowerCase().includes(q))
-      : [...ALL_DEPARTMENTS];
+      ? departments.filter((d) => d.name.toLowerCase().includes(q))
+      : [...departments];
 
     results.sort((a, b) =>
       sort === "asc"
@@ -73,7 +55,7 @@ export default function DepartmentsCentersPage() {
     );
 
     return results;
-  }, [searchQuery, sort]);
+  }, [departments, searchQuery, sort]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PER_PAGE));

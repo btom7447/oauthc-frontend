@@ -21,7 +21,7 @@ export default function HealthServiceCard({ name, slug, image, tagline }: Props)
       className="rounded-xl overflow-hidden relative group cursor-pointer block"
     >
       {/* Image */}
-      <div className="aspect-[4/3] relative overflow-hidden bg-gray-100 flex items-center justify-center">
+      <div className="aspect-4/3 relative overflow-hidden bg-gray-100 flex items-center justify-center">
         <img
           src={src}
           alt={name}

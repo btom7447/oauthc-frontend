@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth, roleLabel } from "@/lib/admin-auth";
+import { api } from "@/lib/api-client";
+import { tokens } from "@/lib/api-client";
+import { io as socketIO, Socket } from "socket.io-client";
 import Image from "next/image";
-import { Menu, Bell, ChevronDown, User, LogOut, X } from "lucide-react";
+import { Menu, Bell, ChevronDown, User, LogOut } from "lucide-react";
+
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace("/api", "") || "http://localhost:5000";
 
 const BREADCRUMB_MAP: Record<string, string> = {
   "/admin": "Dashboard",
@@ -14,7 +19,6 @@ const BREADCRUMB_MAP: Record<string, string> = {
   "/admin/my": "My",
   "/admin/my/shifts": "My Shifts",
   "/admin/my/leave": "My Leave",
-  // CMS
   "/admin/cms": "CMS",
   "/admin/cms/announcements": "Announcements",
   "/admin/cms/doctors": "Doctors",
@@ -22,16 +26,13 @@ const BREADCRUMB_MAP: Record<string, string> = {
   "/admin/cms/health-services": "Health Services",
   "/admin/cms/diseases-symptoms": "Diseases & Symptoms",
   "/admin/cms/tests-procedures": "Tests & Procedures",
-  "/admin/cms/research-ethics": "Research & Ethics",
   "/admin/cms/locations": "Locations",
   "/admin/cms/schools": "Schools",
   "/admin/cms/marquee": "Marquee",
-  // Inbox
   "/admin/inbox": "Inbox",
   "/admin/inbox/contact": "Contact Forms",
   "/admin/inbox/newsletter": "Newsletter",
   "/admin/inbox/research-ethics": "Research Ethics",
-  // Staff management
   "/admin/staff": "Staff Management",
   "/admin/staff/shifts": "Shifts",
   "/admin/staff/leave": "Leave Management",
@@ -44,17 +45,21 @@ type Notification = {
   id: string;
   title: string;
   message: string;
-  time: string;
   read: boolean;
+  createdAt: string;
 };
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: "1", title: "New appointment request", message: "Fatima Bello requested an appointment for Radiology.", time: "10 min ago", read: false },
-  { id: "2", title: "Contact form received", message: "A new contact form was submitted by Emeka Obi.", time: "25 min ago", read: false },
-  { id: "3", title: "Ethics application submitted", message: "Dr. Kola Fashola submitted a research ethics application.", time: "1 hour ago", read: false },
-  { id: "4", title: "Newsletter subscriber", message: "New subscriber: ibrahim.m@email.com", time: "3 hours ago", read: true },
-  { id: "5", title: "CMS update", message: "Dr. Adewale Ojo's profile was updated.", time: "Yesterday", read: true },
-];
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Yesterday";
+  return `${days}d ago`;
+}
 
 type Props = { onMenuClick: () => void };
 
@@ -64,7 +69,9 @@ export default function AdminHeader({ onMenuClick }: Props) {
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const socketRef = useRef<Socket | null>(null);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -79,6 +86,47 @@ export default function AdminHeader({ onMenuClick }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Fetch initial notifications
+  const fetchNotifications = useCallback(async () => {
+    const res = await api.get<Notification[]>("/notifications?limit=20");
+    if (res.ok && res.data) {
+      setNotifications(res.data);
+      if (res.meta && "unreadCount" in res.meta) {
+        setUnreadCount(res.meta.unreadCount ?? 0);
+      }
+    }
+  }, []);
+
+  // Initial fetch + WebSocket connection
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifications();
+
+    const token = tokens.getAccess();
+    if (!token) return;
+
+    const socket = socketIO(SOCKET_URL, {
+      auth: { token },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("notification", (notif: Notification) => {
+      setNotifications((prev) => [notif, ...prev].slice(0, 20));
+      setUnreadCount((c) => c + 1);
+    });
+
+    socket.on("connect_error", () => {
+      // Silent — will auto-retry
+    });
+
+    socketRef.current = socket;
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [user, fetchNotifications]);
+
   const segments = pathname.split("/").filter(Boolean);
   const crumbs: { label: string; href: string }[] = [];
   let path = "";
@@ -88,10 +136,21 @@ export default function AdminHeader({ onMenuClick }: Props) {
     if (label) crumbs.push({ label, href: path });
   }
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const markAllRead = async () => {
+    const res = await api.patch("/notifications/read-all");
+    if (res.ok) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    }
+  };
 
-  const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  const markRead = (id: string) => setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  const markRead = async (id: string) => {
+    const res = await api.patch(`/notifications/${id}/read`);
+    if (res.ok) {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+  };
 
   return (
     <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-5 shrink-0">
@@ -123,7 +182,7 @@ export default function AdminHeader({ onMenuClick }: Props) {
               <Bell size={18} strokeWidth={1.5} />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {unreadCount}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </button>
@@ -145,7 +204,7 @@ export default function AdminHeader({ onMenuClick }: Props) {
                     notifications.map((n) => (
                       <button
                         key={n.id}
-                        onClick={() => markRead(n.id)}
+                        onClick={() => !n.read && markRead(n.id)}
                         className={`w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition ${!n.read ? "bg-blue-50/40" : ""}`}
                       >
                         <div className="flex items-start gap-2.5">
@@ -153,7 +212,7 @@ export default function AdminHeader({ onMenuClick }: Props) {
                           <div className={!n.read ? "" : "pl-4.5"}>
                             <p className={`text-xs leading-tight ${!n.read ? "text-gray-900 font-semibold" : "text-gray-600"}`}>{n.title}</p>
                             <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{n.message}</p>
-                            <p className="text-[10px] text-gray-300 mt-1">{n.time}</p>
+                            <p className="text-[10px] text-gray-300 mt-1">{timeAgo(n.createdAt)}</p>
                           </div>
                         </div>
                       </button>

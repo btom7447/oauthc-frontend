@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Microscope, User, Mail, Calendar, ChevronDown, Download } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
+import { Search, BookOpen, User, Mail, Calendar, ChevronDown, Download, Trash2, Loader2 } from "lucide-react";
 
 type EthicsStatus = "received" | "under-review" | "approved" | "rejected";
 
@@ -17,13 +19,7 @@ type EthicsSubmission = {
   responseNote?: string;
 };
 
-const MOCK: EthicsSubmission[] = [
-  { id: "1", applicantName: "Dr. Seun Adesanya", email: "seun@unife.edu.ng", submittedAt: "2026-03-15T10:00:00Z", yesCount: 10, noCount: 1, naCount: 1, status: "approved", responseNote: "All requirements met. Clearance granted." },
-  { id: "2", applicantName: "Prof. Bisi Adewale", email: "bisi.adewale@oauthc.gov.ng", submittedAt: "2026-03-20T09:30:00Z", yesCount: 8, noCount: 3, naCount: 1, status: "under-review" },
-  { id: "3", applicantName: "Dr. Kola Fashola", email: "kola.f@research.ng", submittedAt: "2026-03-28T14:15:00Z", yesCount: 6, noCount: 4, naCount: 2, status: "received" },
-  { id: "4", applicantName: "Mrs. Tola Ogunsanya", email: "tola.o@unilag.edu.ng", submittedAt: "2026-04-01T08:45:00Z", yesCount: 9, noCount: 2, naCount: 1, status: "received" },
-  { id: "5", applicantName: "Dr. Ngozi Ibe", email: "ngozi.ibe@email.com", submittedAt: "2026-04-02T11:20:00Z", yesCount: 4, noCount: 7, naCount: 1, status: "rejected", responseNote: "Insufficient documentation. Please resubmit with complete IRB protocol." },
-];
+type Meta = { total: number; page: number; limit: number; totalPages: number };
 
 const STATUS_STYLES: Record<EthicsStatus, string> = {
   received: "bg-blue-50 text-blue-700 border border-blue-100",
@@ -57,12 +53,31 @@ function downloadCSV(data: EthicsSubmission[]) {
 }
 
 export default function ResearchEthicsInboxPage() {
+  const [items, setItems] = useState<EthicsSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<EthicsStatus | "all">("all");
-  const [items, setItems] = useState(MOCK);
   const [selected, setSelected] = useState<EthicsSubmission | null>(null);
   const [note, setNote] = useState("");
   const [editingStatus, setEditingStatus] = useState<EthicsStatus | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [page, setPage] = useState(1);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: "50" });
+    if (search) params.set("search", search);
+    if (filter !== "all") params.set("status", filter);
+    const res = await api.get<EthicsSubmission[]>(`/inbox/research-ethics?${params}`);
+    if (res.ok && res.data) {
+      setItems(res.data);
+      if (res.meta) setMeta(res.meta as Meta);
+    }
+    setLoading(false);
+  }, [page, search, filter]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const filtered = useMemo(
     () =>
@@ -70,19 +85,35 @@ export default function ResearchEthicsInboxPage() {
         const matchSearch =
           i.applicantName.toLowerCase().includes(search.toLowerCase()) ||
           i.email.toLowerCase().includes(search.toLowerCase());
-        const matchFilter = filter === "all" || i.status === filter;
-        return matchSearch && matchFilter;
+        return matchSearch;
       }),
-    [items, search, filter]
+    [items, search]
   );
 
-  const updateStatus = (id: string, status: EthicsStatus, responseNote: string) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status, responseNote: responseNote || i.responseNote } : i))
-    );
-    if (selected?.id === id) setSelected((prev) => prev ? { ...prev, status, responseNote } : null);
-    setEditingStatus(null);
-    setNote("");
+  const updateStatus = async (id: string, status: EthicsStatus, responseNote: string) => {
+    setSaving(true);
+    const res = await api.patch<EthicsSubmission>(`/inbox/research-ethics/${id}/status`, { status, responseNote });
+    setSaving(false);
+    if (res.ok && res.data) {
+      setItems((prev) => prev.map((i) => (i.id === id ? res.data! : i)));
+      setSelected(res.data);
+      setEditingStatus(null);
+      setNote("");
+      toast.success("Status updated");
+    } else {
+      toast.error(res.error || "Failed to update");
+    }
+  };
+
+  const remove = async (id: string) => {
+    const res = await api.del(`/inbox/research-ethics/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      if (selected?.id === id) setSelected(null);
+      toast.success("Deleted");
+    } else {
+      toast.error(res.error || "Failed to delete");
+    }
   };
 
   return (
@@ -91,7 +122,7 @@ export default function ResearchEthicsInboxPage() {
         <div>
           <h1 className="text-gray-900 text-xl font-bold">Research Ethics Applications</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {items.filter((i) => i.status === "received").length} pending review · {items.length} total
+            {items.filter((i) => i.status === "received").length} pending review · {meta?.total ?? items.length} total
           </p>
         </div>
         <button
@@ -110,7 +141,7 @@ export default function ResearchEthicsInboxPage() {
             type="text"
             placeholder="Search applicant or email…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent bg-white shadow-sm transition"
           />
         </div>
@@ -118,7 +149,7 @@ export default function ResearchEthicsInboxPage() {
           {(["all", ...STATUS_OPTIONS] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => { setFilter(f); setPage(1); }}
               className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition ${
                 filter === f ? "bg-green-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-green-900"
               }`}
@@ -132,7 +163,21 @@ export default function ResearchEthicsInboxPage() {
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         {/* List */}
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="px-5 py-4 animate-pulse">
+                  <div className="h-3.5 w-40 bg-gray-200 rounded mb-2" />
+                  <div className="h-2.5 w-32 bg-gray-100 rounded mb-1.5" />
+                  <div className="flex gap-3 mt-1.5">
+                    <div className="h-3 w-12 bg-gray-100 rounded" />
+                    <div className="h-3 w-12 bg-gray-100 rounded" />
+                    <div className="h-3 w-12 bg-gray-100 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No applications found.</p>
           ) : (
             <ul className="divide-y divide-gray-50">
@@ -173,9 +218,14 @@ export default function ResearchEthicsInboxPage() {
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5">
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-gray-900 font-semibold text-base">{selected.applicantName}</h2>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize shrink-0 ${STATUS_STYLES[selected.status]}`}>
-                {selected.status.replace("-", " ")}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize shrink-0 ${STATUS_STYLES[selected.status]}`}>
+                  {selected.status.replace("-", " ")}
+                </span>
+                <button onClick={() => remove(selected.id)} className="text-gray-300 hover:text-red-500 transition p-1">
+                  <Trash2 size={13} strokeWidth={1.5} />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 text-xs text-gray-500">
@@ -221,8 +271,10 @@ export default function ResearchEthicsInboxPage() {
               />
               <button
                 onClick={() => updateStatus(selected.id, editingStatus ?? selected.status, note)}
-                className="w-full bg-green-900 hover:bg-green-800 text-white text-sm font-semibold py-2.5 rounded-lg transition"
+                disabled={saving}
+                className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-2"
               >
+                {saving && <Loader2 size={14} className="animate-spin" />}
                 Save Update
               </button>
             </div>
@@ -230,7 +282,7 @@ export default function ResearchEthicsInboxPage() {
         ) : (
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center gap-3">
             <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center">
-              <Microscope size={20} strokeWidth={1.5} className="text-gray-300" />
+              <BookOpen size={20} strokeWidth={1.5} className="text-gray-300" />
             </div>
             <p className="text-gray-400 text-sm">Select an application to review.</p>
           </div>

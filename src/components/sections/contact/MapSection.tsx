@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { MapPin } from "lucide-react";
+import { api } from "@/lib/api-client";
 import type { LocationPin } from "./LeafletMap";
 
 const LeafletMap = dynamic(() => import("./LeafletMap"), {
@@ -13,64 +15,22 @@ const LeafletMap = dynamic(() => import("./LeafletMap"), {
   ),
 });
 
-const locations: LocationPin[] = [
-  {
-    name: "OAUTHC Main Campus",
-    type: "hospital",
-    address: "Ife-Ilesa Road, Ile-Ife, Osun State",
-    lat: 7.4641,
-    lng: 4.5521,
-  },
-  {
-    name: "Wesley Guild Hospital",
-    type: "hospital",
-    address: "Ilesa, Osun State",
-    lat: 7.6281,
-    lng: 4.7366,
-  },
-  {
-    name: "Accident & Emergency Unit",
-    type: "department",
-    address: "Main Campus, Ile-Ife, Osun State",
-    lat: 7.4648,
-    lng: 4.5515,
-  },
-  {
-    name: "Radiology & Imaging Department",
-    type: "department",
-    address: "Main Campus, Ile-Ife, Osun State",
-    lat: 7.4635,
-    lng: 4.5528,
-  },
-  {
-    name: "Cardiology Centre",
-    type: "center",
-    address: "Main Campus, Ile-Ife, Osun State",
-    lat: 7.4644,
-    lng: 4.5510,
-  },
-  {
-    name: "Renal Dialysis Centre",
-    type: "center",
-    address: "Main Campus, Ile-Ife, Osun State",
-    lat: 7.4638,
-    lng: 4.5534,
-  },
-  {
-    name: "Oncology Centre",
-    type: "center",
-    address: "Main Campus, Ile-Ife, Osun State",
-    lat: 7.4651,
-    lng: 4.5508,
-  },
-  {
-    name: "Eye Centre",
-    type: "center",
-    address: "Main Campus, Ile-Ife, Osun State",
-    lat: 7.4633,
-    lng: 4.5542,
-  },
-];
+type APILocation = {
+  id: string;
+  name: string;
+  address: string;
+  mapsQuery: string;
+  type: "main" | "department" | "centre";
+  lat: number;
+  lng: number;
+};
+
+/** Map backend type to pin color type */
+function toPinType(t: APILocation["type"]): LocationPin["type"] {
+  if (t === "main") return "hospital";
+  if (t === "centre") return "center";
+  return "department";
+}
 
 const TYPE_STYLES = {
   hospital: { dot: "bg-red-600", badge: "bg-red-50 text-red-700 border border-red-100", label: "Hospital" },
@@ -79,6 +39,30 @@ const TYPE_STYLES = {
 } satisfies Record<LocationPin["type"], { dot: string; badge: string; label: string }>;
 
 export default function MapSection() {
+  const [pins, setPins] = useState<LocationPin[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const res = await api.get<APILocation[]>("/cms/locations?limit=200", { auth: false });
+      if (res.ok && res.data) {
+        setPins(
+          res.data
+            .filter((l) => l.lat && l.lng)
+            .map((l) => ({
+              name: l.name,
+              type: toPinType(l.type),
+              address: l.address,
+              mapsQuery: l.mapsQuery,
+              lat: l.lat,
+              lng: l.lng,
+            }))
+        );
+      }
+      setLoading(false);
+    })();
+  }, []);
+
   return (
     <section className="w-full bg-gray-50 pt-20">
       {/* Header + legend constrained */}
@@ -111,7 +95,17 @@ export default function MapSection() {
 
       {/* Full-bleed map */}
       <div className="h-130 w-full border-y border-gray-200 shadow-sm">
-        <LeafletMap locations={locations} />
+        {loading ? (
+          <div className="w-full h-full bg-gray-100 animate-pulse flex items-center justify-center">
+            <MapPin size={32} className="text-gray-300" strokeWidth={1.5} />
+          </div>
+        ) : pins.length > 0 ? (
+          <LeafletMap locations={pins} />
+        ) : (
+          <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+            <p className="text-gray-400 text-sm">No locations with coordinates found.</p>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api-client";
 
 const FALLBACK = "/logo.png";
 import Link from "next/link";
@@ -14,6 +15,15 @@ export type AnnouncementItem = {
   image: string;
   link?: string;
   featured?: boolean;
+};
+
+type APIAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  image?: string;
+  link?: string;
+  featured: boolean;
 };
 
 type Props = {
@@ -103,18 +113,40 @@ function AnnouncementModal({
 
 export default function AnnouncementSection({
   title = "Announcements",
-  items = [],
+  items: propItems,
 }: Props) {
   const [active, setActive] = useState<AnnouncementItem | null>(null);
+  const [fetched, setFetched] = useState<AnnouncementItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!items?.length) return null;
+  useEffect(() => {
+    if (propItems && propItems.length > 0) { setLoading(false); return; }
+    (async () => {
+      const res = await api.get<APIAnnouncement[]>("/cms/announcements?limit=10", { auth: false });
+      if (res.ok && res.data) {
+        setFetched(res.data.map((a) => ({
+          id: a.id,
+          name: a.title,
+          content: a.body,
+          image: a.image || FALLBACK,
+          link: a.link,
+          featured: a.featured,
+        })));
+      }
+      setLoading(false);
+    })();
+  }, [propItems]);
+
+  const items = propItems && propItems.length > 0 ? propItems : fetched;
+
+  if (!loading && !items?.length) return null;
 
   const featured = items.find((i) => i.featured) ?? items[0];
-  const rest = items.filter((i) => i.id !== featured.id).slice(0, 4);
+  const rest = items.filter((i) => i.id !== featured?.id).slice(0, 4);
 
   return (
     <>
-      <section className="w-full bg-white py-20 px-6 md:px-12">
+      <section className="w-full bg-white py-30 px-6 md:px-12">
         <div className="max-w-7xl mx-auto flex flex-col gap-10">
           {/* Header */}
           <div className="text-center">
@@ -126,58 +158,84 @@ export default function AnnouncementSection({
             </h2>
           </div>
 
-          {/* Newspaper Grid */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Featured — large left */}
-            <div
-              onClick={() => setActive(featured)}
-              className="lg:col-span-2 relative rounded-2xl overflow-hidden cursor-pointer group"
-            >
-              <img
-                src={featured.image}
-                alt={featured.name}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK; }}
-                className="w-full h-80 md:h-[28rem] object-cover group-hover:scale-105 transition duration-500"
-              />
-              <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
-              <div className="absolute bottom-0 p-6 text-white">
-                <span className="text-xs uppercase bg-red-600 px-2 py-1 rounded font-semibold tracking-wide">
-                  Featured
-                </span>
-                <h3 className="text-xl md:text-3xl font-bold mt-3 leading-tight line-clamp-2">
-                  {featured.name}
-                </h3>
-                {featured.content && (
-                  <p className="mt-2 text-sm text-gray-300 line-clamp-2">
-                    {featured.content}
-                  </p>
-                )}
+          {loading ? (
+            /* Skeleton loader matching the newspaper grid layout */
+            <div className="grid lg:grid-cols-3 gap-6 animate-pulse">
+              {/* Featured skeleton — large left */}
+              <div className="lg:col-span-2 rounded-2xl overflow-hidden bg-gray-200 h-80 md:h-120 relative">
+                <div className="absolute bottom-0 p-6 w-full">
+                  <div className="h-5 w-24 bg-gray-300 rounded mb-3" />
+                  <div className="h-6 w-3/4 bg-gray-300 rounded mb-2" />
+                  <div className="h-4 w-1/2 bg-gray-300/60 rounded" />
+                </div>
+              </div>
+              {/* Side list skeleton */}
+              <div className="flex flex-col gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex gap-4 items-center p-3">
+                    <div className="w-20 h-20 rounded-lg bg-gray-200 shrink-0" />
+                    <div className="flex-1 flex flex-col gap-2">
+                      <div className="h-3.5 w-full bg-gray-200 rounded" />
+                      <div className="h-3.5 w-2/3 bg-gray-200 rounded" />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-
-            {/* Side list */}
-            <div className="flex flex-col gap-4">
-              {rest.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => setActive(item)}
-                  className="flex gap-4 items-center cursor-pointer group p-3 rounded-xl hover:bg-gray-50 transition"
-                >
-                  <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK; }}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                    />
-                  </div>
-                  <h4 className="text-sm md:text-base font-semibold text-gray-800 group-hover:text-red-600 transition line-clamp-3">
-                    {item.name}
-                  </h4>
+          ) : (
+            /* Newspaper Grid */
+            <div className="grid lg:grid-cols-3 gap-6">
+              {/* Featured — large left */}
+              <div
+                onClick={() => setActive(featured)}
+                className="lg:col-span-2 relative rounded-2xl overflow-hidden cursor-pointer group"
+              >
+                <img
+                  src={featured.image}
+                  alt={featured.name}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK; }}
+                  className="w-full h-80 md:h-130 object-cover group-hover:scale-105 transition duration-500"
+                />
+                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
+                <div className="absolute bottom-0 p-6 text-white">
+                  <span className="text-xs uppercase bg-red-600 px-2 py-1 rounded font-semibold tracking-wide">
+                    Featured
+                  </span>
+                  <h3 className="text-xl md:text-3xl font-bold mt-3 leading-tight line-clamp-2">
+                    {featured.name}
+                  </h3>
+                  {featured.content && (
+                    <p className="mt-2 text-sm text-gray-300 line-clamp-2">
+                      {featured.content}
+                    </p>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              {/* Side list */}
+              <div className="flex flex-col gap-4">
+                {rest.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setActive(item)}
+                    className="flex gap-4 items-center cursor-pointer group p-3 rounded-xl hover:bg-gray-50 transition"
+                  >
+                    <div className="w-20 h-25 rounded-lg overflow-hidden shrink-0">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = FALLBACK; }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      />
+                    </div>
+                    <h4 className="text-sm md:text-base font-semibold text-gray-800 group-hover:text-red-600 transition line-clamp-3">
+                      {item.name}
+                    </h4>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 

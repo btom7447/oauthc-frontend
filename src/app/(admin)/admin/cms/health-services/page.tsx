@@ -1,60 +1,45 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import * as LucideIcons from "lucide-react";
-import { Search, Plus, HeartPulse, Pencil, Trash2, X, ChevronDown } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Search, Plus, HeartPulse, Pencil, Trash2, X, ChevronDown, Loader2, PlusCircle, XCircle } from "lucide-react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
 import ImageUpload from "@/components/admin/ImageUpload";
-
-// All lucide-react icon components (forwardRef objects with displayName, no duplicate Icon-suffixed aliases)
-const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
-  Object.entries(LucideIcons).filter(
-    ([name, val]) =>
-      /^[A-Z]/.test(name) &&
-      !name.endsWith("Icon") &&
-      typeof val === "object" &&
-      val !== null &&
-      (val as Record<string, unknown>).displayName
-  )
-) as Record<string, LucideIcon>;
 
 type ServiceStatus = "active" | "draft" | "inactive";
 
-type HealthService = {
+type WhatToExpect = { title: string; detail: string };
+
+type ServiceAPI = {
   id: string;
   title: string;
   slug: string;
   image: string;
   tagline: string;
   description: string;
-  department: string;
-  category: string;
   iconKey: string;
-  overview: string;
-  keyPoints: string;
-  additionalInfo: string;
-  whatToExpect: string;
+  overview: string[];
+  keyPoints: string[];
+  additionalInfo: string[];
+  whatToExpect: WhatToExpect[];
   status: ServiceStatus;
 };
 
-function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
-
-
-
-const MOCK: HealthService[] = [
-  { id: "1", title: "Cardiac Catheterisation", slug: "cardiac-catheterisation", image: "", tagline: "", description: "Minimally invasive procedure to diagnose and treat cardiovascular conditions.", department: "Cardiology", category: "Diagnostic", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "2", title: "MRI Scanning", slug: "mri-scanning", image: "", tagline: "", description: "Advanced magnetic resonance imaging for detailed internal body scans.", department: "Radiology", category: "Imaging", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "3", title: "Chemotherapy", slug: "chemotherapy", image: "", tagline: "", description: "Drug-based treatment for cancer patients.", department: "Oncology", category: "Treatment", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "4", title: "Neonatal Intensive Care", slug: "neonatal-intensive-care", image: "", tagline: "", description: "Specialised care unit for premature and critically ill newborns.", department: "Paediatrics", category: "Intensive Care", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "5", title: "Cataract Surgery", slug: "cataract-surgery", image: "", tagline: "", description: "Surgical removal of the cloudy lens and replacement with an artificial lens.", department: "Ophthalmology", category: "Surgery", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "6", title: "Stroke Rehabilitation", slug: "stroke-rehabilitation", image: "", tagline: "", description: "Comprehensive rehabilitation programme for post-stroke patients.", department: "Neurology", category: "Rehabilitation", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "7", title: "Skin Biopsy", slug: "skin-biopsy", image: "", tagline: "", description: "Removal of a small skin sample for laboratory analysis.", department: "Dermatology", category: "Diagnostic", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "draft" },
-  { id: "8", title: "Physiotherapy", slug: "physiotherapy", image: "", tagline: "", description: "Physical therapy sessions for musculoskeletal and neurological conditions.", department: "Physiotherapy", category: "Rehabilitation", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "9", title: "Diabetes Management Clinic", slug: "diabetes-management-clinic", image: "", tagline: "", description: "Outpatient clinic for monitoring and managing diabetic patients.", department: "Endocrinology", category: "Outpatient", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "10", title: "HIV/AIDS Counselling", slug: "hiv-aids-counselling", image: "", tagline: "", description: "Confidential counselling, testing, and treatment support services.", department: "Infectious Diseases", category: "Counselling", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "11", title: "Antenatal Care", slug: "antenatal-care", image: "", tagline: "", description: "Regular check-ups and care for pregnant women.", department: "Obstetrics & Gynaecology", category: "Maternal Health", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "active" },
-  { id: "12", title: "Blood Bank Services", slug: "blood-bank-services", image: "", tagline: "", description: "Safe blood collection, testing, storage and transfusion services.", department: "Haematology", category: "Support Services", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "inactive" },
-];
+type ServiceForm = {
+  id?: string;
+  title: string;
+  slug: string;
+  image: string;
+  tagline: string;
+  description: string;
+  iconKey: string;
+  overview: string;
+  keyPoints: string[];
+  additionalInfo: string;
+  whatToExpect: WhatToExpect[];
+  status: ServiceStatus;
+};
 
 const STATUS_STYLES: Record<ServiceStatus, string> = {
   active: "bg-green-50 text-green-800 border border-green-100",
@@ -62,43 +47,213 @@ const STATUS_STYLES: Record<ServiceStatus, string> = {
   inactive: "bg-red-50 text-red-600 border border-red-100",
 };
 
-const EMPTY: Omit<HealthService, "id"> = { title: "", slug: "", image: "", tagline: "", description: "", department: "", category: "", iconKey: "", overview: "", keyPoints: "", additionalInfo: "", whatToExpect: "", status: "draft" };
+function toForm(a: ServiceAPI): ServiceForm {
+  return {
+    id: a.id,
+    title: a.title,
+    slug: a.slug,
+    image: a.image || "",
+    tagline: a.tagline || "",
+    description: a.description || "",
+    iconKey: a.iconKey || "",
+    overview: (a.overview || []).join("\n"),
+    keyPoints: a.keyPoints?.length ? a.keyPoints : [""],
+    additionalInfo: (a.additionalInfo || []).join("\n"),
+    whatToExpect: a.whatToExpect?.length ? a.whatToExpect : [{ title: "", detail: "" }],
+    status: a.status,
+  };
+}
+
+function toPayload(f: ServiceForm) {
+  return {
+    title: f.title,
+    slug: f.slug,
+    image: f.image,
+    tagline: f.tagline,
+    description: f.description,
+    iconKey: f.iconKey,
+    status: f.status,
+    overview: f.overview.split("\n").map((s) => s.trim()).filter(Boolean),
+    keyPoints: f.keyPoints.map((s) => s.trim()).filter(Boolean),
+    additionalInfo: f.additionalInfo.split("\n").map((s) => s.trim()).filter(Boolean),
+    whatToExpect: f.whatToExpect.filter((w) => w.title.trim() || w.detail.trim()),
+  };
+}
+
+const EMPTY: ServiceForm = {
+  title: "", slug: "", image: "", tagline: "", description: "",
+  iconKey: "", overview: "", keyPoints: [""], additionalInfo: "",
+  whatToExpect: [{ title: "", detail: "" }], status: "draft",
+};
 
 const inputCls = "border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50";
-const textareaCls = `${inputCls} resize-none`;
 
-export default function HealthServicesCMSPage() {
-  const [items, setItems] = useState(MOCK);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<ServiceStatus | "all">("all");
-  const [panel, setPanel] = useState<{ mode: "new" | "edit"; data: Omit<HealthService, "id"> & { id?: string } } | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
+
+/* ── Icon picker ── */
+const ICON_NAMES = Object.keys(LucideIcons).filter((k) => {
+  // Skip non-PascalCase, aliases ending in "Icon", and utility exports
+  if (k[0] !== k[0].toUpperCase() || k.endsWith("Icon") || k === "default" || k === "createLucideIcon" || k === "icons") return false;
+  const val = (LucideIcons as any)[k];
+  return typeof val === "function" || (typeof val === "object" && val !== null && "$$typeof" in val);
+});
+
+function IconPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
   const [iconSearch, setIconSearch] = useState("");
+  const matches = useMemo(() => {
+    const q = iconSearch.toLowerCase();
+    return q ? ICON_NAMES.filter((n) => n.toLowerCase().includes(q)) : ICON_NAMES;
+  }, [iconSearch]);
+
+  const Chosen = value ? (LucideIcons as any)[value] : null;
+
+  return (
+    <div className="flex flex-col gap-1.5 relative">
+      <label className="text-xs font-semibold text-gray-600">Icon</label>
+      <button type="button" onClick={() => setOpen(!open)} className={`${inputCls} flex items-center gap-2 text-left`}>
+        {Chosen ? <Chosen size={14} strokeWidth={1.5} /> : null}
+        <span className="flex-1 truncate">{value || "Select icon…"}</span>
+        <ChevronDown size={12} className={`text-gray-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 right-0 z-20 mt-1 border border-gray-200 rounded-lg bg-white shadow-xl p-3 flex flex-col gap-2">
+          <input value={iconSearch} onChange={(e) => setIconSearch(e.target.value)} placeholder="Search icons…" autoFocus className="border border-gray-200 rounded px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:ring-1 focus:ring-green-700" />
+          <div className="grid grid-cols-6 gap-1.5 overflow-y-auto" style={{ maxHeight: "14rem" }}>
+            {matches.map((name) => {
+              const Icon = (LucideIcons as any)[name];
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => { onChange(name); setOpen(false); setIconSearch(""); }}
+                  title={name}
+                  className={`w-8 h-8 flex items-center justify-center rounded transition ${value === name ? "bg-green-100 text-green-900" : "hover:bg-gray-100 text-gray-500"}`}
+                >
+                  <Icon size={14} strokeWidth={1.5} />
+                </button>
+              );
+            })}
+            {matches.length === 0 && <p className="col-span-6 text-center text-gray-400 text-xs py-3">No icons found</p>}
+          </div>
+          <p className="text-[10px] text-gray-400 text-center">{matches.length} icons</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function HealthServicesPage() {
+  const [items, setItems] = useState<ServiceForm[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ServiceStatus | "all">("all");
+  const [panel, setPanel] = useState<{ mode: "new" | "edit"; data: ServiceForm } | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const res = await api.get<ServiceAPI[]>("/admin/cms/health-services?limit=200");
+    if (res.ok && res.data) setItems(res.data.map(toForm));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const filtered = useMemo(() =>
     items.filter((i) => {
-      const matchSearch = i.title.toLowerCase().includes(search.toLowerCase()) || i.department.toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === "all" || i.status === filter;
+      const matchSearch = i.title.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = statusFilter === "all" || i.status === statusFilter;
       return matchSearch && matchFilter;
-    }), [items, search, filter]);
+    }), [items, search, statusFilter]);
 
-  const openNew = () => setPanel({ mode: "new", data: { ...EMPTY } });
-  const openEdit = (item: HealthService) => setPanel({ mode: "edit", data: { ...item } });
-  const save = () => {
+  const openNew = () => setPanel({ mode: "new", data: { ...EMPTY, keyPoints: [""], whatToExpect: [{ title: "", detail: "" }] } });
+  const openEdit = (item: ServiceForm) => setPanel({ mode: "edit", data: { ...item, keyPoints: [...item.keyPoints], whatToExpect: item.whatToExpect.map((w) => ({ ...w })) } });
+
+  const save = async () => {
     if (!panel) return;
-    if (panel.mode === "new") setItems((prev) => [{ ...panel.data, id: String(Date.now()) } as HealthService, ...prev]);
-    else setItems((prev) => prev.map((i) => i.id === panel.data.id ? { ...panel.data } as HealthService : i));
+    setSaving(true);
+    const payload = toPayload(panel.data);
+    if (panel.mode === "new") {
+      const res = await api.post<ServiceAPI>("/admin/cms/health-services", payload);
+      if (res.ok && res.data) {
+        setItems((prev) => [toForm(res.data!), ...prev]);
+        toast.success("Service created");
+      } else {
+        toast.error(res.error || "Failed to create");
+      }
+    } else {
+      const res = await api.patch<ServiceAPI>(`/admin/cms/health-services/${panel.data.id}`, payload);
+      if (res.ok && res.data) {
+        setItems((prev) => prev.map((i) => i.id === panel.data.id ? toForm(res.data!) : i));
+        toast.success("Service updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    }
+    setSaving(false);
     setPanel(null);
   };
-  const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
-  const setField = (k: string, v: string) =>
+
+  const remove = async (id: string) => {
+    const res = await api.del(`/admin/cms/health-services/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Service deleted");
+      if (panel?.data.id === id) setPanel(null);
+    } else {
+      toast.error(res.error || "Failed to delete");
+    }
+    setDeleteId(null);
+  };
+
+  const setField = (k: string, v: string) => {
     setPanel((p) => {
       if (!p) return p;
-      const update: Record<string, string> = { [k]: v };
-      if (k === "title" && p.mode === "new") update.slug = slugify(v);
-      return { ...p, data: { ...p.data, ...update } };
+      const next = { ...p, data: { ...p.data, [k]: v } };
+      if (k === "title" && p.mode === "new") next.data.slug = slugify(v);
+      return next;
     });
+  };
+
+  /* ── Array field helpers ── */
+  const updateKeyPoint = (idx: number, val: string) => {
+    setPanel((p) => {
+      if (!p) return p;
+      const kp = [...p.data.keyPoints];
+      kp[idx] = val;
+      return { ...p, data: { ...p.data, keyPoints: kp } };
+    });
+  };
+  const addKeyPoint = () => {
+    setPanel((p) => p ? { ...p, data: { ...p.data, keyPoints: [...p.data.keyPoints, ""] } } : p);
+  };
+  const removeKeyPoint = (idx: number) => {
+    setPanel((p) => {
+      if (!p) return p;
+      const kp = p.data.keyPoints.filter((_, i) => i !== idx);
+      return { ...p, data: { ...p.data, keyPoints: kp.length ? kp : [""] } };
+    });
+  };
+
+  const updateWTE = (idx: number, field: "title" | "detail", val: string) => {
+    setPanel((p) => {
+      if (!p) return p;
+      const wte = p.data.whatToExpect.map((w, i) => i === idx ? { ...w, [field]: val } : w);
+      return { ...p, data: { ...p.data, whatToExpect: wte } };
+    });
+  };
+  const addWTE = () => {
+    setPanel((p) => p ? { ...p, data: { ...p.data, whatToExpect: [...p.data.whatToExpect, { title: "", detail: "" }] } } : p);
+  };
+  const removeWTE = (idx: number) => {
+    setPanel((p) => {
+      if (!p) return p;
+      const wte = p.data.whatToExpect.filter((_, i) => i !== idx);
+      return { ...p, data: { ...p.data, whatToExpect: wte.length ? wte : [{ title: "", detail: "" }] } };
+    });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,93 +263,85 @@ export default function HealthServicesCMSPage() {
           <p className="text-gray-500 text-sm mt-1">{items.filter((i) => i.status === "active").length} active · {items.length} total</p>
         </div>
         <button onClick={openNew} className="flex items-center gap-2 bg-green-900 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition">
-          <Plus size={14} strokeWidth={2} /> New
+          <Plus size={14} strokeWidth={2} /> New Service
         </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" strokeWidth={1.5} />
-          <input type="text" placeholder="Search title, department…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 bg-white shadow-sm transition" />
+          <input type="text" placeholder="Search services…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 bg-white shadow-sm transition" />
         </div>
         <div className="flex gap-2 flex-wrap">
           {(["all", "active", "draft", "inactive"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition ${filter === f ? "bg-green-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-green-900"}`}>{f}</button>
+            <button key={f} onClick={() => setStatusFilter(f)} className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition ${statusFilter === f ? "bg-green-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-green-900"}`}>{f}</button>
           ))}
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-5 py-4 animate-pulse">
+                  <div className="w-8 h-8 rounded-lg bg-gray-200 shrink-0" />
+                  <div className="flex-1">
+                    <div className="h-3.5 w-40 bg-gray-200 rounded mb-2" />
+                    <div className="h-2.5 w-56 bg-gray-100 rounded mb-2" />
+                    <div className="h-4 w-14 bg-gray-100 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No services found.</p>
           ) : (
             <ul className="divide-y divide-gray-50">
-              {filtered.map((item) => (
-                <li key={item.id} className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 mt-0.5">
-                    {(() => { const Icon = item.iconKey ? (ICON_MAP[item.iconKey] ?? HeartPulse) : HeartPulse; return <Icon size={14} strokeWidth={1.5} className="text-amber-600" />; })()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-900 font-semibold text-sm truncate">{item.title}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{item.department} · {item.category}</p>
-                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize mt-1.5 ${STATUS_STYLES[item.status]}`}>{item.status}</span>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => openEdit(item)} className="p-1.5 text-gray-300 hover:text-green-900 transition"><Pencil size={13} strokeWidth={1.5} /></button>
-                    <button onClick={() => setDeleteId(item.id)} className="p-1.5 text-gray-300 hover:text-red-500 transition"><Trash2 size={13} strokeWidth={1.5} /></button>
-                  </div>
-                </li>
-              ))}
+              {filtered.map((item) => {
+                const Icon = item.iconKey ? (LucideIcons as any)[item.iconKey] : HeartPulse;
+                return (
+                  <li key={item.id} className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition">
+                    <div className="w-8 h-8 rounded-lg bg-green-900/10 flex items-center justify-center shrink-0">
+                      {Icon ? <Icon size={14} strokeWidth={1.5} className="text-green-900" /> : <HeartPulse size={14} strokeWidth={1.5} className="text-green-900" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gray-900 font-semibold text-sm truncate">{item.title}</p>
+                      <p className="text-gray-400 text-xs mt-0.5 line-clamp-1">{item.tagline}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize mt-1.5 inline-block ${STATUS_STYLES[item.status]}`}>{item.status}</span>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => openEdit(item)} className="p-1.5 text-gray-300 hover:text-green-900 transition"><Pencil size={13} strokeWidth={1.5} /></button>
+                      <button onClick={() => setDeleteId(item.id!)} className="p-1.5 text-gray-300 hover:text-red-500 transition"><Trash2 size={13} strokeWidth={1.5} /></button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
 
         {panel ? (
-          <div className="bg-white border border-gray-100 rounded-xl shadow-sm flex flex-col max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 flex items-center justify-between px-6 py-4">
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
               <h2 className="text-gray-900 font-semibold text-base">{panel.mode === "new" ? "New Service" : "Edit Service"}</h2>
               <button onClick={() => setPanel(null)} className="text-gray-300 hover:text-gray-600 transition"><X size={16} strokeWidth={1.5} /></button>
             </div>
+            <div className="p-6 flex flex-col gap-5 max-h-[75vh] overflow-y-auto">
+              <ImageUpload value={panel.data.image} onChange={(v) => setField("image", v)} label="Hero Image" aspectRatio="landscape" folder="health-services" />
 
-            <div className="flex flex-col gap-5 p-6">
-              {/* Image */}
-              <ImageUpload
-                value={panel.data.image}
-                onChange={(v) => setField("image", v)}
-                label="Service Image"
-                aspectRatio="landscape"
-                folder="health-services"
-              />
-
-              {/* Core */}
               <div className="flex flex-col gap-4">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Core Details</p>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-600">Title</label>
-                  <input value={panel.data.title} onChange={(e) => setField("title", e.target.value)} placeholder="Service name" className={inputCls} />
+                  <input value={panel.data.title} onChange={(e) => setField("title", e.target.value)} placeholder="Service title" className={inputCls} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-600">Slug</label>
-                  <input value={panel.data.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="auto-generated from title" className={inputCls} />
+                  <input value={panel.data.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="auto-generated" className={`${inputCls} text-gray-400`} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-gray-600">Tagline</label>
-                  <input value={panel.data.tagline} onChange={(e) => setField("tagline", e.target.value)} placeholder="Short description shown on cards" className={inputCls} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Description</label>
-                  <textarea value={panel.data.description} onChange={(e) => setField("description", e.target.value)} rows={3} placeholder="Short description…" className={textareaCls} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-600">Department</label>
-                    <input value={panel.data.department} onChange={(e) => setField("department", e.target.value)} placeholder="e.g. Cardiology" className={inputCls} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-600">Category</label>
-                    <input value={panel.data.category} onChange={(e) => setField("category", e.target.value)} placeholder="e.g. Diagnostic" className={inputCls} />
-                  </div>
+                  <input value={panel.data.tagline} onChange={(e) => setField("tagline", e.target.value)} placeholder="Short description" className={inputCls} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
@@ -205,111 +352,78 @@ export default function HealthServicesCMSPage() {
                       <option value="inactive">Inactive</option>
                     </select>
                   </div>
-                </div>
-
-                {/* Icon picker */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Icon</label>
-                  <button
-                    type="button"
-                    onClick={() => { setIconPickerOpen((v) => !v); setIconSearch(""); }}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm text-left transition ${iconPickerOpen ? "border-green-700 ring-2 ring-green-700" : "border-gray-200 hover:border-gray-300"} bg-gray-50`}
-                  >
-                    {(() => {
-                      const Icon = panel.data.iconKey ? (ICON_MAP[panel.data.iconKey] ?? null) : null;
-                      return Icon
-                        ? <Icon size={15} strokeWidth={1.5} className="text-amber-600 shrink-0" />
-                        : <HeartPulse size={15} strokeWidth={1.5} className="text-gray-300 shrink-0" />;
-                    })()}
-                    <span className={`flex-1 truncate ${panel.data.iconKey ? "text-gray-700" : "text-gray-400"}`}>
-                      {panel.data.iconKey || "Choose icon…"}
-                    </span>
-                    <ChevronDown size={12} strokeWidth={1.5} className="text-gray-400 shrink-0" />
-                  </button>
-
-                  {iconPickerOpen && (
-                    <div className="border border-gray-200 rounded-xl bg-white shadow-md flex flex-col overflow-hidden">
-                      {/* Search */}
-                      <div className="p-2 border-b border-gray-100">
-                        <div className="relative">
-                          <Search size={12} strokeWidth={1.5} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder="Search icons…"
-                            value={iconSearch}
-                            onChange={(e) => setIconSearch(e.target.value)}
-                            className="w-full pl-7 pr-3 py-1.5 text-xs text-gray-700 placeholder-gray-400 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-green-700 bg-gray-50"
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-
-                      {/* Scrollable icon grid */}
-                      <div className="h-56 overflow-y-auto p-2">
-                        {(() => {
-                          const matches = Object.entries(ICON_MAP).filter(([name]) =>
-                            name.toLowerCase().includes(iconSearch.toLowerCase())
-                          );
-                          if (matches.length === 0) return (
-                            <p className="text-center text-gray-400 text-xs py-8">No icons match "{iconSearch}"</p>
-                          );
-                          return (
-                            <div className="grid grid-cols-6 gap-1">
-                              {matches.map(([name, Icon]) => (
-                                <button
-                                  key={name}
-                                  type="button"
-                                  title={name}
-                                  onClick={() => { setField("iconKey", name); setIconPickerOpen(false); setIconSearch(""); }}
-                                  className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg text-[9px] font-medium transition ${panel.data.iconKey === name ? "bg-amber-50 text-amber-700 border border-amber-200" : "text-gray-500 hover:bg-gray-100"}`}
-                                >
-                                  <Icon size={16} strokeWidth={1.5} className={panel.data.iconKey === name ? "text-amber-600" : "text-gray-500"} />
-                                  <span className="truncate w-full text-center leading-tight">{name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {panel.data.iconKey && (
-                        <div className="border-t border-gray-100 px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => { setField("iconKey", ""); setIconPickerOpen(false); }}
-                            className="text-[11px] text-gray-400 hover:text-red-500 transition"
-                          >
-                            Clear selection
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <IconPicker value={panel.data.iconKey} onChange={(v) => setField("iconKey", v)} />
                 </div>
               </div>
 
-              {/* Content */}
-              <div className="flex flex-col gap-4">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Content</p>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Overview <span className="text-gray-400 font-normal">(one paragraph per line)</span></label>
-                  <textarea value={panel.data.overview} onChange={(e) => setField("overview", e.target.value)} rows={4} placeholder={"Paragraph one…\nParagraph two…"} className={textareaCls} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Key Points <span className="text-gray-400 font-normal">(one per line)</span></label>
-                  <textarea value={panel.data.keyPoints} onChange={(e) => setField("keyPoints", e.target.value)} rows={4} placeholder={"Point one\nPoint two\nPoint three"} className={textareaCls} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Additional Info <span className="text-gray-400 font-normal">(one paragraph per line)</span></label>
-                  <textarea value={panel.data.additionalInfo} onChange={(e) => setField("additionalInfo", e.target.value)} rows={3} placeholder={"Extra paragraph one…\nExtra paragraph two…"} className={textareaCls} />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">What to Expect <span className="text-gray-400 font-normal">(format: "Title: Detail", one per line)</span></label>
-                  <textarea value={panel.data.whatToExpect} onChange={(e) => setField("whatToExpect", e.target.value)} rows={4} placeholder={"Arrival: Please arrive 15 minutes early.\nConsultation: The doctor will review your history."} className={textareaCls} />
-                </div>
+              {/* ── Overview ── */}
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pt-2">Overview</p>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Overview Paragraphs <span className="text-gray-400 font-normal">(one paragraph per line)</span></label>
+                <textarea value={panel.data.overview} onChange={(e) => setField("overview", e.target.value)} rows={4} placeholder="Overview paragraph 1&#10;Overview paragraph 2" className={`${inputCls} resize-none`} />
               </div>
 
-              <button onClick={save} disabled={!panel.data.title} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+              {/* ── Highlights ── */}
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Highlight Offers</p>
+                <button type="button" onClick={addKeyPoint} className="flex items-center gap-1 text-xs font-semibold text-green-800 hover:text-green-900 transition">
+                  <PlusCircle size={13} strokeWidth={1.5} /> Add
+                </button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {panel.data.keyPoints.map((kp, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      value={kp}
+                      onChange={(e) => updateKeyPoint(idx, e.target.value)}
+                      placeholder={`Highlight ${idx + 1}`}
+                      className={`${inputCls} flex-1`}
+                    />
+                    <button type="button" onClick={() => removeKeyPoint(idx)} className="text-gray-300 hover:text-red-500 transition shrink-0">
+                      <XCircle size={16} strokeWidth={1.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Our Approach ── */}
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pt-2">Our Approach</p>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-gray-600">Approach Paragraphs <span className="text-gray-400 font-normal">(one paragraph per line)</span></label>
+                <textarea value={panel.data.additionalInfo} onChange={(e) => setField("additionalInfo", e.target.value)} rows={3} placeholder="Approach paragraph 1&#10;Approach paragraph 2" className={`${inputCls} resize-none`} />
+              </div>
+
+              {/* ── What to Expect ── */}
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">What to Expect</p>
+                <button type="button" onClick={addWTE} className="flex items-center gap-1 text-xs font-semibold text-green-800 hover:text-green-900 transition">
+                  <PlusCircle size={13} strokeWidth={1.5} /> Add
+                </button>
+              </div>
+              <div className="flex flex-col gap-3">
+                {panel.data.whatToExpect.map((wte, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      value={wte.title}
+                      onChange={(e) => updateWTE(idx, "title", e.target.value)}
+                      placeholder="Step title"
+                      className={`${inputCls} w-2/5`}
+                    />
+                    <input
+                      value={wte.detail}
+                      onChange={(e) => updateWTE(idx, "detail", e.target.value)}
+                      placeholder="Step detail"
+                      className={`${inputCls} flex-1 text-gray-500`}
+                    />
+                    <button type="button" onClick={() => removeWTE(idx)} className="text-gray-300 hover:text-red-500 transition shrink-0">
+                      <XCircle size={16} strokeWidth={1.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={save} disabled={!panel.data.title || saving} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                {saving && <Loader2 size={14} className="animate-spin" />}
                 {panel.mode === "new" ? "Create Service" : "Save Changes"}
               </button>
             </div>

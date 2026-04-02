@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -11,7 +11,19 @@ export type LocationPin = {
   address: string;
   lat: number;
   lng: number;
+  mapsQuery?: string;
 };
+
+/** Fit map bounds to all markers */
+function FitBounds({ locations }: { locations: LocationPin[] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (locations.length === 0) return;
+    const bounds = L.latLngBounds(locations.map((l) => [l.lat, l.lng]));
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+  }, [map, locations]);
+  return null;
+}
 
 const PIN_COLORS: Record<LocationPin["type"], string> = {
   hospital: "#dc2626",
@@ -73,13 +85,20 @@ export default function LeafletMap({ locations }: Props) {
     }
   }, []);
 
-  const avgLat = locations.reduce((s, l) => s + l.lat, 0) / locations.length;
-  const avgLng = locations.reduce((s, l) => s + l.lng, 0) / locations.length;
+  const fallbackCenter: [number, number] = [
+    locations.reduce((s, l) => s + l.lat, 0) / locations.length,
+    locations.reduce((s, l) => s + l.lng, 0) / locations.length,
+  ];
+
+  const openGoogleMaps = (loc: LocationPin) => {
+    const query = loc.mapsQuery || `${loc.lat},${loc.lng}`;
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, "_blank");
+  };
 
   return (
     <MapContainer
-      center={[avgLat, avgLng]}
-      zoom={15}
+      center={fallbackCenter}
+      zoom={13}
       className="w-full h-full"
       scrollWheelZoom={false}
     >
@@ -87,11 +106,13 @@ export default function LeafletMap({ locations }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      <FitBounds locations={locations} />
       {locations.map((loc) => (
         <Marker
           key={loc.name}
           position={[loc.lat, loc.lng]}
           icon={makeIcon(PIN_COLORS[loc.type])}
+          eventHandlers={{ click: () => openGoogleMaps(loc) }}
         >
           <Tooltip
             permanent

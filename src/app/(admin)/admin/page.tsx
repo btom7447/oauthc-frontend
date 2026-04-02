@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAuth, roleLabel } from "@/lib/admin-auth";
+import { api } from "@/lib/api-client";
 import {
   CalendarDays,
   Users,
@@ -11,39 +13,70 @@ import {
   Stethoscope,
   Building2,
   ClipboardCheck,
+  Mail,
+  BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 
 type StatCard = {
   label: string;
-  value: string;
+  value: number;
   icon: React.ElementType;
   color: string;
   bg: string;
 };
 
-const STATS_BY_ROLE = {
-  admin: [
-    { label: "Today's Appointments", value: "34", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
-    { label: "Active Doctors", value: "61", icon: Stethoscope, color: "text-green-900", bg: "bg-green-900/10" },
-    { label: "Announcements", value: "8", icon: Megaphone, color: "text-red-600", bg: "bg-red-50" },
-    { label: "CMS Items", value: "120", icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
-  ],
-  staff: [
-    { label: "Today's Appointments", value: "34", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
-    { label: "Contact Forms", value: "5", icon: FileText, color: "text-green-900", bg: "bg-green-900/10" },
-    { label: "Ethics Applications", value: "3", icon: ClipboardCheck, color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Newsletter Subscribers", value: "8", icon: Users, color: "text-red-600", bg: "bg-red-50" },
-  ],
-  doctor: [
-    { label: "My Appointments Today", value: "6", icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
-    { label: "Total Appointments", value: "142", icon: ClipboardCheck, color: "text-green-900", bg: "bg-green-900/10" },
-    { label: "Pending", value: "3", icon: CalendarDays, color: "text-amber-600", bg: "bg-amber-50" },
-    { label: "Profile Status", value: "Live", icon: UserCircle, color: "text-red-600", bg: "bg-red-50" },
-  ],
-} satisfies Record<string, StatCard[]>;
+type AdminStats = {
+  todayAppointments: number;
+  activeDoctors: number;
+  totalUsers: number;
+  pendingUsers: number;
+  unreadContacts: number;
+  totalContacts: number;
+  activeSubscribers: number;
+  totalSubscribers: number;
+  pendingEthics: number;
+  totalEthics: number;
+  pendingAppointments: number;
+};
 
-const QUICK_LINKS_BY_ROLE = {
+type DoctorStats = {
+  myAppointmentsToday: number;
+  totalAppointments: number;
+  pendingAppointments: number;
+};
+
+function buildAdminStats(d: AdminStats): StatCard[] {
+  return [
+    { label: "Today's Appointments", value: d.todayAppointments, icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
+    { label: "Active Doctors", value: d.activeDoctors, icon: Stethoscope, color: "text-green-900", bg: "bg-green-900/10" },
+    { label: "Total Users", value: d.totalUsers, icon: Users, color: "text-violet-600", bg: "bg-violet-50" },
+    { label: "Pending Users", value: d.pendingUsers, icon: UserCircle, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Unread Contacts", value: d.unreadContacts, icon: Mail, color: "text-red-600", bg: "bg-red-50" },
+    { label: "Newsletter Subscribers", value: d.activeSubscribers, icon: Megaphone, color: "text-teal-700", bg: "bg-teal-50" },
+    { label: "Pending Ethics", value: d.pendingEthics, icon: BookOpen, color: "text-orange-600", bg: "bg-orange-50" },
+    { label: "Pending Appointments", value: d.pendingAppointments, icon: ClipboardCheck, color: "text-indigo-600", bg: "bg-indigo-50" },
+  ];
+}
+
+function buildStaffStats(d: AdminStats): StatCard[] {
+  return [
+    { label: "Today's Appointments", value: d.todayAppointments, icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
+    { label: "Unread Contacts", value: d.unreadContacts, icon: Mail, color: "text-green-900", bg: "bg-green-900/10" },
+    { label: "Pending Ethics", value: d.pendingEthics, icon: BookOpen, color: "text-amber-600", bg: "bg-amber-50" },
+    { label: "Newsletter Subscribers", value: d.activeSubscribers, icon: Megaphone, color: "text-red-600", bg: "bg-red-50" },
+  ];
+}
+
+function buildDoctorStats(d: DoctorStats): StatCard[] {
+  return [
+    { label: "My Appointments Today", value: d.myAppointmentsToday, icon: CalendarDays, color: "text-blue-700", bg: "bg-blue-50" },
+    { label: "Total Appointments", value: d.totalAppointments, icon: ClipboardCheck, color: "text-green-900", bg: "bg-green-900/10" },
+    { label: "Pending", value: d.pendingAppointments, icon: CalendarDays, color: "text-amber-600", bg: "bg-amber-50" },
+  ];
+}
+
+const QUICK_LINKS_BY_ROLE: Record<string, { label: string; href: string; icon: React.ElementType }[]> = {
   admin: [
     { label: "View Appointments", href: "/admin/appointments", icon: CalendarDays },
     { label: "Announcements", href: "/admin/cms/announcements", icon: Megaphone },
@@ -63,9 +96,28 @@ const QUICK_LINKS_BY_ROLE = {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState<StatCard[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const res = await api.get<AdminStats & DoctorStats>("/dashboard/stats");
+      if (res.ok && res.data) {
+        if (user.role === "doctor") {
+          setStats(buildDoctorStats(res.data));
+        } else if (user.role === "staff") {
+          setStats(buildStaffStats(res.data));
+        } else {
+          setStats(buildAdminStats(res.data));
+        }
+      }
+      setLoading(false);
+    })();
+  }, [user]);
+
   if (!user) return null;
 
-  const stats = STATS_BY_ROLE[user.role] ?? STATS_BY_ROLE["admin"];
   const quickLinks = QUICK_LINKS_BY_ROLE[user.role] ?? QUICK_LINKS_BY_ROLE["admin"];
 
   const greeting = () => {
@@ -80,7 +132,7 @@ export default function AdminDashboard() {
       {/* Welcome */}
       <div>
         <h1 className="text-gray-900 text-2xl font-bold">
-          {greeting()}, {user.name.split(" ")[0]} 👋
+          {greeting()}, {user.name.split(" ")[0]}
         </h1>
         <p className="text-gray-500 text-sm mt-1">
           Here&apos;s what&apos;s happening across OAUTHC today.
@@ -89,20 +141,30 @@ export default function AdminDashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="bg-white border border-gray-100 rounded-xl p-5 flex flex-col gap-4 shadow-sm"
-          >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
-              <s.icon size={18} strokeWidth={1.5} className={s.color} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
-              <p className="text-gray-500 text-xs mt-0.5">{s.label}</p>
-            </div>
-          </div>
-        ))}
+        {loading
+          ? Array.from({ length: user.role === "doctor" ? 3 : user.role === "staff" ? 4 : 8 }).map((_, i) => (
+              <div key={i} className="bg-white border border-gray-100 rounded-xl p-5 flex flex-col gap-4 shadow-sm animate-pulse">
+                <div className="w-10 h-10 rounded-xl bg-gray-100" />
+                <div>
+                  <div className="h-7 w-16 bg-gray-200 rounded mb-1" />
+                  <div className="h-3 w-28 bg-gray-100 rounded" />
+                </div>
+              </div>
+            ))
+          : stats.map((s) => (
+              <div
+                key={s.label}
+                className="bg-white border border-gray-100 rounded-xl p-5 flex flex-col gap-4 shadow-sm"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
+                  <s.icon size={18} strokeWidth={1.5} className={s.color} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                  <p className="text-gray-500 text-xs mt-0.5">{s.label}</p>
+                </div>
+              </div>
+            ))}
       </div>
 
       {/* Quick actions */}

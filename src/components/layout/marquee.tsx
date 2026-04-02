@@ -1,10 +1,41 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { MarqueeProps } from "@/types/marquee";
+import { api } from "@/lib/api-client";
+import type { MarqueeItem, MarqueeSettings } from "@/types/marquee";
 
-export default function Marquee({ items = [], fallbackText }: MarqueeProps) {
-  const hasItems = items && items.length > 0;
+const TYPE_COLORS: Record<MarqueeItem["type"], string> = {
+  info: "text-blue-700",
+  urgent: "text-red-700",
+  event: "text-purple-700",
+};
+
+const SPEED_DURATION: Record<MarqueeSettings["speed"], number> = {
+  slow: 40,
+  normal: 25,
+  fast: 14,
+};
+
+export default function Marquee() {
+  const [items, setItems] = useState<MarqueeItem[]>([]);
+  const [settings, setSettings] = useState<MarqueeSettings>({ enabled: true, speed: "normal" });
+  const [loaded, setLoaded] = useState(false);
+
+  const fetchMarquee = useCallback(async () => {
+    const res = await api.get<{ items: MarqueeItem[]; settings: MarqueeSettings }>("/cms/marquee", { auth: false });
+    if (res.ok && res.data) {
+      setItems(res.data.items || []);
+      if (res.data.settings) setSettings(res.data.settings);
+    }
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => { fetchMarquee(); }, [fetchMarquee]);
+
+  if (!loaded || !settings.enabled || items.length === 0) return null;
+
+  const duration = SPEED_DURATION[settings.speed] || 25;
 
   return (
     <div className="marquee-container bg-gray-100 text-sm overflow-hidden">
@@ -14,38 +45,34 @@ export default function Marquee({ items = [], fallbackText }: MarqueeProps) {
         </div>
 
         <div className="whitespace-nowrap overflow-hidden">
-          <div className="inline-block animate-marquee text-black text-lg">
-            {hasItems ? (
-              items.map((item) => {
-                const content = <span className="mr-8">{item.text}</span>;
+          <div
+            className="inline-block animate-marquee text-black text-lg"
+            style={{ animationDuration: `${duration}s` }}
+          >
+            {items.map((item) => {
+              const color = TYPE_COLORS[item.type] || "text-black";
+              const content = <span className={`mr-8 ${color}`}>{item.text}</span>;
 
-                if (item.url) {
-                  return item.isExternal ? (
-                    <a
-                      key={item.id}
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="hover:underline"
-                    >
-                      {content}
-                    </a>
-                  ) : (
-                    <Link key={item.id} href={item.url}>
-                      {content}
-                    </Link>
-                  );
-                }
-
-                return (
-                  <span key={item.id} className="mr-8">
-                    {item.text}
-                  </span>
+              if (item.link) {
+                return item.isExternal ? (
+                  <a
+                    key={item.id}
+                    href={item.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    {content}
+                  </a>
+                ) : (
+                  <Link key={item.id} href={item.link}>
+                    {content}
+                  </Link>
                 );
-              })
-            ) : (
-              <span>{fallbackText}</span>
-            )}
+              }
+
+              return <span key={item.id}>{content}</span>;
+            })}
           </div>
         </div>
       </div>

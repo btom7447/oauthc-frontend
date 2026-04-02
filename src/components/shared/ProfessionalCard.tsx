@@ -43,6 +43,7 @@ function CardBody({ prof }: { prof: Professional }) {
           src={prof.image}
           alt={prof.name}
           fill
+          sizes="(max-width: 768px) 100vw, 25vw"
           className="object-cover object-top group-hover:scale-105 transition duration-500"
         />
       </div>
@@ -58,37 +59,31 @@ function CardBody({ prof }: { prof: Professional }) {
         {prof.social && (
           <div className="flex gap-2">
             {prof.social.linkedin && (
-              <a
-                href={prof.social.linkedin}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(prof.social!.linkedin, "_blank", "noopener,noreferrer"); }}
                 className="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 transition"
               >
                 <FaLinkedinIn size={13} />
-              </a>
+              </button>
             )}
             {prof.social.facebook && (
-              <a
-                href={prof.social.facebook}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(prof.social!.facebook, "_blank", "noopener,noreferrer"); }}
                 className="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 transition"
               >
                 <FaFacebookF size={13} />
-              </a>
+              </button>
             )}
             {prof.social.instagram && (
-              <a
-                href={prof.social.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(prof.social!.instagram, "_blank", "noopener,noreferrer"); }}
                 className="flex items-center justify-center w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 transition"
               >
                 <FaInstagram size={13} />
-              </a>
+              </button>
             )}
           </div>
         )}

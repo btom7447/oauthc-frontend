@@ -13,6 +13,7 @@ export default function AuthLayout({ children }: Props) {
           src="/images/admin/auth.jpg"
           alt="OAUTHC Hospital"
           fill
+          sizes="75vw"
           className="object-cover"
           priority
         />
@@ -23,7 +24,7 @@ export default function AuthLayout({ children }: Props) {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 relative">
-              <Image src="/logo.png" alt="OAUTHC" fill className="object-contain" />
+              <Image src="/logo.png" alt="OAUTHC" fill sizes="40px" className="object-contain" />
             </div>
             <div>
               <p className="text-white font-bold text-lg leading-tight tracking-tight">
@@ -55,11 +56,11 @@ export default function AuthLayout({ children }: Props) {
       </div>
 
       {/* Right — form panel (1/4) */}
-      <div className="w-full lg:w-1/4 bg-white flex flex-col justify-center px-8 py-12 overflow-y-auto">
+      <div className="w-full lg:w-2/5 xl:w-1/4 bg-white flex flex-col justify-center px-8 py-12 overflow-y-auto">
         {/* Mobile logo */}
         <div className="flex items-center gap-3 mb-8 lg:hidden">
           <div className="w-8 h-8 relative">
-            <Image src="/logo.png" alt="OAUTHC" fill className="object-contain" />
+            <Image src="/logo.png" alt="OAUTHC" fill sizes="40px" className="object-contain" />
           </div>
           <span className="text-gray-900 font-bold text-base">OAUTHC Admin</span>
         </div>

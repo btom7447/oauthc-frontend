@@ -1,60 +1,199 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Plus, Activity, Pencil, Trash2, X } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
+import { Search, Plus, Activity, Pencil, Trash2, X, Loader2 } from "lucide-react";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 type EntryStatus = "published" | "draft";
 
-type DiseaseEntry = {
+type DiseaseAPI = {
   id: string;
-  title: string;
-  description: string;
-  symptoms: string;
+  name: string;
+  slug: string;
   category: string;
+  overview: string[];
+  images: string[];
+  symptoms: string[];
+  causes: string[];
+  whenToSeeDoctor: string[];
+  treatment: string[];
+  prevention: string[];
   status: EntryStatus;
 };
 
-const MOCK: DiseaseEntry[] = [
-  { id: "1", title: "Hypertension", description: "A condition in which blood pressure is persistently elevated.", symptoms: "Headache, dizziness, shortness of breath, chest pain", category: "Cardiovascular", status: "published" },
-  { id: "2", title: "Type 2 Diabetes", description: "A chronic condition affecting the way the body metabolises sugar.", symptoms: "Frequent urination, increased thirst, fatigue, blurred vision", category: "Endocrine", status: "published" },
-  { id: "3", title: "Malaria", description: "A life-threatening disease caused by Plasmodium parasites transmitted by mosquitoes.", symptoms: "Fever, chills, headache, muscle pain, nausea", category: "Infectious Disease", status: "published" },
-  { id: "4", title: "Asthma", description: "A condition in which the airways narrow, swell and may produce extra mucus.", symptoms: "Shortness of breath, chest tightness, wheezing, coughing", category: "Respiratory", status: "published" },
-  { id: "5", title: "Typhoid Fever", description: "A bacterial infection caused by Salmonella typhi.", symptoms: "High fever, weakness, stomach pain, headache, rash", category: "Infectious Disease", status: "published" },
-  { id: "6", title: "Stroke", description: "A medical emergency caused by interrupted blood supply to the brain.", symptoms: "Facial drooping, arm weakness, speech difficulty, sudden severe headache", category: "Neurological", status: "published" },
-  { id: "7", title: "Sickle Cell Anaemia", description: "An inherited blood disorder characterised by abnormal haemoglobin.", symptoms: "Anaemia, pain crises, swollen hands and feet, frequent infections", category: "Haematological", status: "draft" },
-];
+type DiseaseForm = Omit<DiseaseAPI, "overview"> & { overview: string };
 
 const STATUS_STYLES: Record<EntryStatus, string> = {
   published: "bg-green-50 text-green-800 border border-green-100",
   draft: "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
-const EMPTY: Omit<DiseaseEntry, "id"> = { title: "", description: "", symptoms: "", category: "", status: "draft" };
+function toForm(a: DiseaseAPI): DiseaseForm {
+  return {
+    ...a,
+    overview: (a.overview || []).join("\n"),
+    symptoms: a.symptoms?.length ? a.symptoms : [""],
+    causes: a.causes?.length ? a.causes : [""],
+    whenToSeeDoctor: a.whenToSeeDoctor?.length ? a.whenToSeeDoctor : [""],
+    treatment: a.treatment?.length ? a.treatment : [""],
+    prevention: a.prevention?.length ? a.prevention : [""],
+  };
+}
+
+function toPayload(f: DiseaseForm) {
+  const clean = (arr: string[]) => arr.map((s) => s.trim()).filter(Boolean);
+  return {
+    name: f.name,
+    slug: f.slug,
+    category: f.category,
+    status: f.status,
+    images: f.images,
+    overview: f.overview.split("\n").map((l) => l.trim()).filter(Boolean),
+    symptoms: clean(f.symptoms),
+    causes: clean(f.causes),
+    whenToSeeDoctor: clean(f.whenToSeeDoctor),
+    treatment: clean(f.treatment),
+    prevention: clean(f.prevention),
+  };
+}
+
+const EMPTY: Omit<DiseaseForm, "id"> = {
+  name: "", slug: "", category: "", overview: "", images: [],
+  symptoms: [""], causes: [""], whenToSeeDoctor: [""], treatment: [""], prevention: [""],
+  status: "draft",
+};
+
+const inputCls = "border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50";
+
+function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 
 export default function DiseasesSymptomsPage() {
-  const [items, setItems] = useState(MOCK);
+  const [items, setItems] = useState<DiseaseForm[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<EntryStatus | "all">("all");
-  const [panel, setPanel] = useState<{ mode: "new" | "edit"; data: Omit<DiseaseEntry, "id"> & { id?: string } } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<EntryStatus | "all">("all");
+  const [panel, setPanel] = useState<{ mode: "new" | "edit"; data: Omit<DiseaseForm, "id"> & { id?: string } } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const res = await api.get<DiseaseAPI[]>("/admin/cms/diseases?limit=200");
+    if (res.ok && res.data) setItems(res.data.map(toForm));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const filtered = useMemo(() =>
     items.filter((i) => {
-      const matchSearch = i.title.toLowerCase().includes(search.toLowerCase()) || i.category.toLowerCase().includes(search.toLowerCase());
-      const matchFilter = filter === "all" || i.status === filter;
+      const matchSearch = i.name.toLowerCase().includes(search.toLowerCase()) || i.category.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = statusFilter === "all" || i.status === statusFilter;
       return matchSearch && matchFilter;
-    }), [items, search, filter]);
+    }), [items, search, statusFilter]);
 
-  const openNew = () => setPanel({ mode: "new", data: { ...EMPTY } });
-  const openEdit = (item: DiseaseEntry) => setPanel({ mode: "edit", data: { ...item } });
-  const save = () => {
+  const openNew = () => setPanel({ mode: "new", data: { ...EMPTY, symptoms: [""], causes: [""], whenToSeeDoctor: [""], treatment: [""], prevention: [""] } });
+  const openEdit = (item: DiseaseForm) => setPanel({ mode: "edit", data: { ...item, symptoms: [...item.symptoms], causes: [...item.causes], whenToSeeDoctor: [...item.whenToSeeDoctor], treatment: [...item.treatment], prevention: [...item.prevention] } });
+
+  const save = async () => {
     if (!panel) return;
-    if (panel.mode === "new") setItems((prev) => [{ ...panel.data, id: String(Date.now()) } as DiseaseEntry, ...prev]);
-    else setItems((prev) => prev.map((i) => i.id === panel.data.id ? { ...panel.data } as DiseaseEntry : i));
+    setSaving(true);
+    const payload = toPayload(panel.data as DiseaseForm);
+    if (panel.mode === "new") {
+      const res = await api.post<DiseaseAPI>("/admin/cms/diseases", payload);
+      if (res.ok && res.data) {
+        setItems((prev) => [toForm(res.data!), ...prev]);
+        toast.success("Entry created");
+      } else {
+        toast.error(res.error || "Failed to create");
+      }
+    } else {
+      const res = await api.patch<DiseaseAPI>(`/admin/cms/diseases/${panel.data.id}`, payload);
+      if (res.ok && res.data) {
+        setItems((prev) => prev.map((i) => i.id === panel.data.id ? toForm(res.data!) : i));
+        toast.success("Entry updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    }
+    setSaving(false);
     setPanel(null);
   };
-  const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
-  const setField = (k: string, v: string) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
+
+  const remove = async (id: string) => {
+    const res = await api.del(`/admin/cms/diseases/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Entry deleted");
+      if (panel?.data.id === id) setPanel(null);
+    } else {
+      toast.error(res.error || "Failed to delete");
+    }
+    setDeleteId(null);
+  };
+
+  const setField = (k: string, v: string | string[]) => {
+    setPanel((p) => {
+      if (!p) return p;
+      const next = { ...p, data: { ...p.data, [k]: v } };
+      if (k === "name" && p.mode === "new") next.data.slug = slugify(v as string);
+      return next;
+    });
+  };
+
+  // Array field helpers
+  const updateArr = (field: string, idx: number, val: string) =>
+    setPanel((p) => {
+      if (!p) return p;
+      const arr = [...(p.data as any)[field]];
+      arr[idx] = val;
+      return { ...p, data: { ...p.data, [field]: arr } };
+    });
+
+  const addArr = (field: string) =>
+    setPanel((p) => {
+      if (!p) return p;
+      return { ...p, data: { ...p.data, [field]: [...(p.data as any)[field], ""] } };
+    });
+
+  const removeArr = (field: string, idx: number) =>
+    setPanel((p) => {
+      if (!p) return p;
+      const arr = [...(p.data as any)[field]];
+      arr.splice(idx, 1);
+      return { ...p, data: { ...p.data, [field]: arr.length ? arr : [""] } };
+    });
+
+  const renderArrayField = (label: string, field: string, placeholder: string) => {
+    const arr: string[] = (panel?.data as any)?.[field] || [""];
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-gray-600">{label}</label>
+          <button type="button" onClick={() => addArr(field)} className="flex items-center gap-1 text-xs text-green-900 hover:text-green-700 font-semibold transition">
+            <Plus size={12} strokeWidth={2} /> Add
+          </button>
+        </div>
+        {arr.map((val, i) => (
+          <div key={i} className="flex gap-2">
+            <input
+              value={val}
+              onChange={(e) => updateArr(field, i, e.target.value)}
+              placeholder={placeholder}
+              className={`${inputCls} flex-1`}
+            />
+            {arr.length > 1 && (
+              <button type="button" onClick={() => removeArr(field, i)} className="text-gray-300 hover:text-red-500 transition p-1.5">
+                <X size={14} strokeWidth={1.5} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,37 +203,50 @@ export default function DiseasesSymptomsPage() {
           <p className="text-gray-500 text-sm mt-1">{items.filter((i) => i.status === "published").length} published · {items.length} total</p>
         </div>
         <button onClick={openNew} className="flex items-center gap-2 bg-green-900 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition">
-          <Plus size={14} strokeWidth={2} /> New
+          <Plus size={14} strokeWidth={2} /> New Entry
         </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" strokeWidth={1.5} />
-          <input type="text" placeholder="Search title, category…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 bg-white shadow-sm transition" />
+          <input type="text" placeholder="Search name, category…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 bg-white shadow-sm transition" />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {(["all", "published", "draft"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition ${filter === f ? "bg-green-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-green-900"}`}>{f}</button>
+            <button key={f} onClick={() => setStatusFilter(f)} className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition ${statusFilter === f ? "bg-green-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-green-900"}`}>{f}</button>
           ))}
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-5 py-4 animate-pulse">
+                  <div className="w-8 h-8 rounded-lg bg-gray-200 shrink-0" />
+                  <div className="flex-1">
+                    <div className="h-3.5 w-36 bg-gray-200 rounded mb-2" />
+                    <div className="h-2.5 w-24 bg-gray-100 rounded mb-2" />
+                    <div className="h-4 w-16 bg-gray-100 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No entries found.</p>
           ) : (
             <ul className="divide-y divide-gray-50">
               {filtered.map((item) => (
                 <li key={item.id} className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition">
-                  <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center shrink-0 mt-0.5">
-                    <Activity size={14} strokeWidth={1.5} className="text-rose-600" />
+                  <div className="w-8 h-8 rounded-lg bg-green-900/10 flex items-center justify-center shrink-0">
+                    <Activity size={14} strokeWidth={1.5} className="text-green-900" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-gray-900 font-semibold text-sm">{item.title}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{item.category}</p>
-                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize mt-1.5 ${STATUS_STYLES[item.status]}`}>{item.status}</span>
+                    <p className="text-gray-900 font-semibold text-sm truncate">{item.name}</p>
+                    {item.category && <p className="text-gray-400 text-xs mt-0.5">{item.category}</p>}
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize mt-1.5 inline-block ${STATUS_STYLES[item.status]}`}>{item.status}</span>
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => openEdit(item)} className="p-1.5 text-gray-300 hover:text-green-900 transition"><Pencil size={13} strokeWidth={1.5} /></button>
@@ -107,41 +259,67 @@ export default function DiseasesSymptomsPage() {
         </div>
 
         {panel ? (
-          <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 flex flex-col gap-5">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
               <h2 className="text-gray-900 font-semibold text-base">{panel.mode === "new" ? "New Entry" : "Edit Entry"}</h2>
               <button onClick={() => setPanel(null)} className="text-gray-300 hover:text-gray-600 transition"><X size={16} strokeWidth={1.5} /></button>
             </div>
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Title</label>
-                  <input value={panel.data.title} onChange={(e) => setField("title", e.target.value)} placeholder="Disease name" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+            <div className="p-6 flex flex-col gap-5 max-h-[75vh] overflow-y-auto">
+              <ImageUpload
+                value={panel.data.images}
+                onChange={(urls: string[]) => setField("images", urls)}
+                label="Images"
+                maxImages={4}
+                aspectRatio="landscape"
+                folder="diseases"
+              />
+
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Basic Info</p>
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Name</label>
+                    <input value={panel.data.name} onChange={(e) => setField("name", e.target.value)} placeholder="Disease name" className={inputCls} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Category</label>
+                    <input value={panel.data.category} onChange={(e) => setField("category", e.target.value)} placeholder="e.g. Infectious" className={inputCls} />
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-gray-600">Category</label>
-                  <input value={panel.data.category} onChange={(e) => setField("category", e.target.value)} placeholder="e.g. Cardiovascular" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Slug</label>
+                    <input value={panel.data.slug} onChange={(e) => setField("slug", e.target.value)} placeholder="auto-generated" className={`${inputCls} text-gray-400`} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Status</label>
+                    <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className={`${inputCls} appearance-none`}>
+                      <option value="draft">Draft</option>
+                      <option value="published">Published</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Description</label>
-                <textarea value={panel.data.description} onChange={(e) => setField("description", e.target.value)} rows={3} placeholder="Brief description…" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
+
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider pt-2">Content Sections</p>
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-600">Overview <span className="text-gray-400 font-normal">(one paragraph per line)</span></label>
+                  <textarea value={panel.data.overview} onChange={(e) => setField("overview", e.target.value)} rows={4} placeholder="Overview paragraph 1&#10;Overview paragraph 2" className={`${inputCls} resize-none`} />
+                </div>
+
+                {renderArrayField("Signs & Symptoms", "symptoms", "e.g. Fever, headache, fatigue")}
+                {renderArrayField("Causes & Risk Factors", "causes", "e.g. Bacterial infection")}
+                {renderArrayField("When to See a Doctor", "whenToSeeDoctor", "e.g. If symptoms persist for more than 3 days")}
+                {renderArrayField("Treatment Options", "treatment", "e.g. Antibiotics, rest and hydration")}
+                {renderArrayField("Prevention", "prevention", "e.g. Regular hand washing, vaccination")}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Common Symptoms</label>
-                <textarea value={panel.data.symptoms} onChange={(e) => setField("symptoms", e.target.value)} rows={2} placeholder="Comma-separated symptoms…" className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 resize-none" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-gray-600">Status</label>
-                <select value={panel.data.status} onChange={(e) => setField("status", e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50 appearance-none">
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </div>
+
+              <button onClick={save} disabled={!panel.data.name || saving} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                {panel.mode === "new" ? "Create Entry" : "Save Changes"}
+              </button>
             </div>
-            <button onClick={save} disabled={!panel.data.title} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
-              {panel.mode === "new" ? "Create Entry" : "Save Changes"}
-            </button>
           </div>
         ) : (
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center gap-3">

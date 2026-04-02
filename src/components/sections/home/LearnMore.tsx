@@ -210,6 +210,7 @@ export default function LearnMoreSection() {
                     src={img}
                     alt={`about-${current.key}-${i}`}
                     fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-cover"
                   />
                 </div>

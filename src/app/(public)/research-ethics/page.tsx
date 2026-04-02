@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { User, Mail, Send, AlertCircle, Info } from "lucide-react";
+import { User, Mail, Send, AlertCircle, Info, Loader2 } from "lucide-react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
 import PageBreadcrumb from "@/components/shared/breadcrumb";
 
 type YesNoNA = "yes" | "no" | "na" | "";
@@ -84,13 +86,14 @@ export default function ResearchEthicsPage() {
   const [form, setForm] = useState<FormState>(defaultForm);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const allTicked = CHECKLIST_ITEMS.every((item) => form[item.key] !== "");
     if (!allTicked || !form.name || !form.email) {
@@ -98,8 +101,46 @@ export default function ResearchEthicsPage() {
       return;
     }
     setError(false);
-    setSubmitted(true);
-    console.log(form);
+    setSending(true);
+
+    // Count yes/no/na
+    const counts = CHECKLIST_ITEMS.reduce(
+      (acc, item) => {
+        const val = form[item.key];
+        if (val === "yes") acc.yesCount++;
+        else if (val === "no") acc.noCount++;
+        else if (val === "na") acc.naCount++;
+        return acc;
+      },
+      { yesCount: 0, noCount: 0, naCount: 0 }
+    );
+
+    const payload = {
+      applicantName: form.name,
+      email: form.email,
+      ...counts,
+      // Include individual checklist values
+      researchProposal: form.researchProposal,
+      applicationForm: form.applicationForm,
+      informedConsent: form.informedConsent,
+      subjectInfoSheet: form.subjectInfoSheet,
+      questionnaire: form.questionnaire,
+      proforma: form.proforma,
+      interviewForm: form.interviewForm,
+      advertisement: form.advertisement,
+      consultantLetter: form.consultantLetter,
+      dataSheet: form.dataSheet,
+      compensationStatement: form.compensationStatement,
+      isotopeClearance: form.isotopeClearance,
+    };
+
+    const res = await api.post("/research-ethics/apply", payload, { auth: false });
+    setSending(false);
+    if (res.ok) {
+      setSubmitted(true);
+    } else {
+      toast.error(res.error || "Failed to submit application. Please try again.");
+    }
   };
 
   return (
@@ -262,10 +303,11 @@ export default function ResearchEthicsPage() {
               <div className="flex flex-col gap-4">
                 <button
                   type="submit"
-                  className="flex items-center justify-center gap-2 w-full md:w-fit md:px-12 py-3.5 bg-green-900 hover:bg-green-800 active:scale-95 text-white font-semibold rounded-lg transition"
+                  disabled={sending}
+                  className="flex items-center justify-center gap-2 w-full md:w-fit md:px-12 py-3.5 bg-green-900 hover:bg-green-800 active:scale-95 disabled:opacity-60 text-white font-semibold rounded-lg transition"
                 >
-                  <Send size={16} />
-                  Submit Application
+                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  {sending ? "Submitting…" : "Submit Application"}
                 </button>
 
                 <div className="flex items-start gap-2 text-gray-400 text-sm bg-white/5 border border-white/10 rounded-lg px-4 py-3">

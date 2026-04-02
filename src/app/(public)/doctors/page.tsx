@@ -5,8 +5,10 @@ import PageBreadcrumb from "@/components/shared/breadcrumb";
 import FilteredGrid from "@/components/shared/FilteredGrid";
 import DoctorCard from "@/components/cards/DoctorCard";
 import DoctorCardSkeleton from "@/components/skeleton/DoctorCardSkeleton";
+import { api } from "@/lib/api-client";
 
 type Doctor = {
+  id: string;
   name: string;
   slug: string;
   image?: string;
@@ -22,147 +24,10 @@ type Doctor = {
   social?: { linkedin?: string; facebook?: string; instagram?: string };
 };
 
-const ALL_DOCTORS: Doctor[] = [
-  {
-    name: "Dr. Adebayo Ogundimu",
-    slug: "dr-adebayo-ogundimu",
-    gender: "male",
-    specialty: "Cardiology",
-    yearsOfExperience: 18,
-    languages: ["English", "Yoruba"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FWACP", "FESC"],
-    social: { linkedin: "#", facebook: "#" },
-  },
-  {
-    name: "Dr. Ngozi Eze",
-    slug: "dr-ngozi-eze",
-    gender: "female",
-    specialty: "Neurology",
-    yearsOfExperience: 12,
-    languages: ["English", "Igbo"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FMCP"],
-    social: { linkedin: "#" },
-  },
-  {
-    name: "Dr. Fatima Suleiman",
-    slug: "dr-fatima-suleiman",
-    gender: "female",
-    specialty: "Paediatrics",
-    yearsOfExperience: 9,
-    languages: ["English", "Hausa", "Yoruba"],
-    center: "Wesley Guild Hospital",
-    qualifications: ["MBBS", "FWACP (Paed)"],
-    image: undefined,
-    social: { facebook: "#", instagram: "#" },
-  },
-  {
-    name: "Dr. Chukwuemeka Obi",
-    slug: "dr-chukwuemeka-obi",
-    gender: "male",
-    specialty: "Orthopaedics",
-    yearsOfExperience: 22,
-    languages: ["English", "Igbo"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FWACS"],
-    social: { linkedin: "#" },
-  },
-  {
-    name: "Dr. Adesola Adewale",
-    slug: "dr-adesola-adewale",
-    gender: "female",
-    specialty: "Oncology",
-    yearsOfExperience: 14,
-    languages: ["English", "Yoruba"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FMCP", "MSc Oncology"],
-    social: { linkedin: "#", instagram: "#" },
-  },
-  {
-    name: "Dr. Musa Ibrahim",
-    slug: "dr-musa-ibrahim",
-    gender: "male",
-    specialty: "General Surgery",
-    yearsOfExperience: 16,
-    languages: ["English", "Hausa"],
-    center: "Wesley Guild Hospital",
-    qualifications: ["MBBS", "FWACS"],
-    image: undefined,
-  },
-  {
-    name: "Dr. Chinwe Okafor",
-    slug: "dr-chinwe-okafor",
-    gender: "female",
-    specialty: "Dermatology",
-    yearsOfExperience: 8,
-    languages: ["English", "Igbo"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FMCP (Derm)"],
-    social: { instagram: "#", linkedin: "#" },
-  },
-  {
-    name: "Dr. Kehinde Lawal",
-    slug: "dr-kehinde-lawal",
-    gender: "male",
-    specialty: "Cardiology",
-    yearsOfExperience: 20,
-    languages: ["English", "Yoruba", "Hausa"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FACC", "FESC"],
-    social: { linkedin: "#", facebook: "#" },
-  },
-  {
-    name: "Dr. Blessing Nwosu",
-    slug: "dr-blessing-nwosu",
-    gender: "female",
-    specialty: "Obstetrics & Gynaecology",
-    yearsOfExperience: 11,
-    languages: ["English", "Igbo"],
-    center: "Wesley Guild Hospital",
-    qualifications: ["MBBS", "FWACS"],
-    image: undefined,
-    social: { facebook: "#" },
-  },
-  {
-    name: "Dr. Rotimi Adeyemi",
-    slug: "dr-rotimi-adeyemi",
-    gender: "male",
-    specialty: "Neurology",
-    yearsOfExperience: 15,
-    languages: ["English", "Yoruba"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FMCP", "PhD"],
-    social: { linkedin: "#" },
-  },
-  {
-    name: "Dr. Halima Abdullahi",
-    slug: "dr-halima-abdullahi",
-    gender: "female",
-    specialty: "Paediatrics",
-    yearsOfExperience: 7,
-    languages: ["English", "Hausa"],
-    center: "Wesley Guild Hospital",
-    qualifications: ["MBBS", "FWACP (Paed)"],
-    image: undefined,
-    social: { instagram: "#" },
-  },
-  {
-    name: "Dr. Segun Badmus",
-    slug: "dr-segun-badmus",
-    gender: "male",
-    specialty: "Orthopaedics",
-    yearsOfExperience: 13,
-    languages: ["English", "Yoruba", "Igbo"],
-    center: "OAUTHC Main Campus",
-    qualifications: ["MBBS", "FWACS", "MCh Orth"],
-    social: { linkedin: "#", facebook: "#" },
-  },
-];
-
 const PER_PAGE = 9;
 
 export default function DoctorsPage() {
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [gender, setGender] = useState("");
@@ -172,23 +37,26 @@ export default function DoctorsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
+    (async () => {
+      const res = await api.get<Doctor[]>("/cms/doctors?limit=200", { auth: false });
+      if (res.ok && res.data) setDoctors(res.data);
+      setIsLoading(false);
+    })();
   }, []);
 
   const specialties = useMemo(
-    () => [...new Set(ALL_DOCTORS.map((d) => d.specialty))].sort(),
-    []
+    () => [...new Set(doctors.map((d) => d.specialty))].sort(),
+    [doctors]
   );
 
   const languages = useMemo(
-    () => [...new Set(ALL_DOCTORS.flatMap((d) => d.languages))].sort(),
-    []
+    () => [...new Set(doctors.flatMap((d) => d.languages))].sort(),
+    [doctors]
   );
 
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    let results = ALL_DOCTORS.filter((d) => {
+    let results = doctors.filter((d) => {
       if (q && !d.name.toLowerCase().includes(q)) return false;
       if (specialty && d.specialty !== specialty) return false;
       if (gender && d.gender !== gender) return false;
@@ -201,7 +69,7 @@ export default function DoctorsPage() {
     );
 
     return results;
-  }, [searchQuery, specialty, gender, language, sort]);
+  }, [doctors, searchQuery, specialty, gender, language, sort]);
 
   const handleSearch = (q: string) => {
     setSearchQuery(q);
@@ -270,9 +138,6 @@ export default function DoctorsPage() {
         title="Our Doctors"
         links={[{ label: "Doctors" }]}
       />
-      {/* DoctorCard is a horizontal card — a 2-column grid looks best (lg:grid-cols-2).
-          FilteredGrid uses its own grid class (4-col default). Cards still display
-          correctly at any column count since they have intrinsic horizontal layout. */}
       <FilteredGrid<Doctor>
         description="Meet our team of specialist consultants and doctors dedicated to delivering expert, compassionate healthcare across all disciplines."
         items={paginated}

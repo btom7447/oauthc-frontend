@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth, type Role, roleLabel } from "@/lib/admin-auth";
+import { api } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
-import { Search, ShieldOff, User, ChevronDown, Check, Filter } from "lucide-react";
+import { Search, ShieldOff, User, ChevronDown, Check, Filter, UserPlus } from "lucide-react";
+import toast from "react-hot-toast";
 
 type StaffUser = {
   id: string;
@@ -11,20 +13,11 @@ type StaffUser = {
   email: string;
   role: Role;
   department?: string;
-  status: "active" | "suspended";
+  status: "active" | "suspended" | "pending";
   joinedAt: string;
 };
 
-const MOCK_USERS: StaffUser[] = [
-  { id: "1", name: "Emeka Okafor", email: "admin@oauthc.gov.ng", role: "admin", status: "active", joinedAt: "2024-01-10" },
-  { id: "2", name: "Amaka Nwosu", email: "staff@oauthc.gov.ng", role: "staff", status: "active", joinedAt: "2024-03-15" },
-  { id: "3", name: "Dr. Adewale Ojo", email: "doctor@oauthc.gov.ng", role: "doctor", department: "Cardiology", status: "active", joinedAt: "2023-08-01" },
-  { id: "4", name: "Dr. Ngozi Chukwu", email: "ngozi@oauthc.gov.ng", role: "doctor", department: "Radiology", status: "active", joinedAt: "2023-09-20" },
-  { id: "5", name: "Dr. Tunde Lawal", email: "tunde@oauthc.gov.ng", role: "doctor", department: "Neurology", status: "active", joinedAt: "2024-02-05" },
-  { id: "6", name: "Dr. Kemi Adeyinka", email: "kemi@oauthc.gov.ng", role: "doctor", department: "Ophthalmology", status: "suspended", joinedAt: "2023-11-12" },
-  { id: "7", name: "Dr. Yetunde Abiola", email: "yetunde@oauthc.gov.ng", role: "doctor", department: "Oncology", status: "active", joinedAt: "2024-01-28" },
-  { id: "8", name: "Bola Fashola", email: "bola@oauthc.gov.ng", role: "staff", status: "active", joinedAt: "2024-04-02" },
-];
+type Meta = { total: number; page: number; limit: number; totalPages: number };
 
 const ROLE_STYLES: Record<Role, string> = {
   admin: "bg-red-50 text-red-700 border border-red-100",
@@ -39,9 +32,36 @@ export default function UsersPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<"active" | "suspended" | "all">("all");
-  const [users, setUsers] = useState<StaffUser[]>(MOCK_USERS);
+  const [statusFilter, setStatusFilter] = useState<"active" | "suspended" | "pending" | "all">("all");
+  const [users, setUsers] = useState<StaffUser[]>([]);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", "20");
+    if (search) params.set("search", search);
+    if (roleFilter !== "all") params.set("role", roleFilter);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+
+    const res = await api.get<StaffUser[]>(`/users?${params.toString()}`);
+    if (res.ok && res.data) {
+      setUsers(res.data);
+      if (res.meta) setMeta(res.meta as Meta);
+    }
+    setLoading(false);
+  }, [page, search, roleFilter, statusFilter]);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // Debounce search
+  useEffect(() => {
+    setPage(1);
+  }, [search, roleFilter, statusFilter]);
 
   if (!user) return null;
 
@@ -60,32 +80,46 @@ export default function UsersPage() {
     );
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const filtered = useMemo(() =>
-    users.filter((u) => {
-      const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
-      const matchRole = roleFilter === "all" || u.role === roleFilter;
-      const matchStatus = statusFilter === "all" || u.status === statusFilter;
-      return matchSearch && matchRole && matchStatus;
-    }), [users, search, roleFilter, statusFilter]);
-
-  const changeRole = (id: string, role: Role) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, role } : u)));
+  const changeRole = async (id: string, role: Role) => {
     setOpenDropdown(null);
+    const res = await api.patch<StaffUser>(`/users/${id}`, { role });
+    if (res.ok && res.data) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? res.data! : u)));
+      toast.success(`Role updated to ${roleLabel(role)}`);
+    } else {
+      toast.error(res.error || "Failed to update role");
+    }
   };
 
-  const toggleStatus = (id: string) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status: u.status === "active" ? "suspended" : "active" } : u));
+  const toggleStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "suspended" : "active";
+    const res = await api.patch<StaffUser>(`/users/${id}`, { status: newStatus });
+    if (res.ok && res.data) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? res.data! : u)));
+      toast.success(newStatus === "active" ? "User reinstated" : "User suspended");
+    } else {
+      toast.error(res.error || "Failed to update status");
+    }
   };
 
-  const activeCount = users.filter((u) => u.status === "active").length;
+  const approveUser = async (id: string) => {
+    const res = await api.patch<StaffUser>(`/users/${id}/approve`);
+    if (res.ok && res.data) {
+      setUsers((prev) => prev.map((u) => (u.id === id ? res.data! : u)));
+      toast.success("User approved");
+    } else {
+      toast.error(res.error || "Failed to approve user");
+    }
+  };
+
+  const activeCount = meta?.total ?? users.length;
 
   return (
     <div className="flex flex-col gap-6" onClick={() => setOpenDropdown(null)}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-gray-900 text-xl font-bold">User Management</h1>
-          <p className="text-gray-500 text-sm mt-1">{activeCount} active · {users.length} total</p>
+          <p className="text-gray-500 text-sm mt-1">{activeCount} total users</p>
         </div>
       </div>
 
@@ -108,12 +142,13 @@ export default function UsersPage() {
           </select>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "active" | "suspended" | "all")}
+            onChange={(e) => setStatusFilter(e.target.value as "active" | "suspended" | "pending" | "all")}
             className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-white shadow-sm transition appearance-none pr-8 cursor-pointer"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
+            <option value="pending">Pending</option>
           </select>
         </div>
 
@@ -125,7 +160,7 @@ export default function UsersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -139,10 +174,29 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0" />
+                        <div>
+                          <div className="h-3.5 w-28 bg-gray-200 rounded mb-1.5" />
+                          <div className="h-2.5 w-36 bg-gray-100 rounded" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5"><div className="h-5 w-20 bg-gray-200 rounded-full" /></td>
+                    <td className="px-5 py-3.5"><div className="h-3.5 w-24 bg-gray-100 rounded" /></td>
+                    <td className="px-5 py-3.5"><div className="h-3 w-20 bg-gray-100 rounded" /></td>
+                    <td className="px-5 py-3.5"><div className="h-5 w-16 bg-gray-200 rounded-full" /></td>
+                    <td className="px-5 py-3.5"><div className="h-3.5 w-14 bg-gray-100 rounded" /></td>
+                  </tr>
+                ))
+              ) : users.length === 0 ? (
                 <tr><td colSpan={6} className="text-center text-gray-400 text-sm py-12">No users found.</td></tr>
               ) : (
-                filtered.map((u) => (
+                users.map((u) => (
                   <tr key={u.id} className="hover:bg-gray-50 transition">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2.5">
@@ -160,18 +214,18 @@ export default function UsersPage() {
                       <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => setOpenDropdown(openDropdown === u.id ? null : u.id)}
-                          disabled={u.id === user.id}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${ROLE_STYLES[u.role]} ${u.id === user.id ? "cursor-default" : "hover:opacity-80 transition"}`}
+                          disabled={u.id === user.id || u.status === "pending"}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${ROLE_STYLES[u.role]} ${u.id === user.id || u.status === "pending" ? "cursor-default" : "hover:opacity-80 transition"}`}
                         >
                           {roleLabel(u.role)}
-                          {u.id !== user.id && <ChevronDown size={11} strokeWidth={2} />}
+                          {u.id !== user.id && u.status !== "pending" && <ChevronDown size={11} strokeWidth={2} />}
                         </button>
                         {openDropdown === u.id && (
-                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-100 rounded-lg shadow-lg z-10 py-1 min-w-[140px]">
+                          <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-100 rounded-lg shadow-lg z-50 py-1 min-w-35">
                             {ROLES.map((r) => (
                               <button key={r} onClick={() => changeRole(u.id, r)} className="w-full flex items-center gap-2 px-3 py-2 text-xs capitalize text-gray-700 hover:bg-gray-50 transition">
                                 {u.role === r && <Check size={11} className="text-green-900 shrink-0" />}
-                                <span className={u.role !== r ? "pl-[15px]" : ""}>{roleLabel(r)}</span>
+                                <span className={u.role !== r ? "pl-3.75" : ""}>{roleLabel(r)}</span>
                               </button>
                             ))}
                           </div>
@@ -186,16 +240,28 @@ export default function UsersPage() {
                     </td>
 
                     <td className="px-5 py-3.5">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${u.status === "active" ? "bg-green-50 text-green-800 border border-green-100" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${
+                        u.status === "active" ? "bg-green-50 text-green-800 border border-green-100" :
+                        u.status === "pending" ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                        "bg-gray-100 text-gray-500 border border-gray-200"
+                      }`}>
                         {u.status}
                       </span>
                     </td>
 
                     <td className="px-5 py-3.5">
                       {u.id !== user.id && (
-                        <button onClick={() => toggleStatus(u.id)} className={`text-xs font-semibold transition ${u.status === "active" ? "text-red-600 hover:text-red-700" : "text-green-900 hover:text-green-700"}`}>
-                          {u.status === "active" ? "Suspend" : "Reinstate"}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          {u.status === "pending" ? (
+                            <button onClick={() => approveUser(u.id)} className="flex items-center gap-1 text-xs font-semibold text-green-900 hover:text-green-700 transition">
+                              <UserPlus size={12} strokeWidth={2} /> Approve
+                            </button>
+                          ) : (
+                            <button onClick={() => toggleStatus(u.id, u.status)} className={`text-xs font-semibold transition ${u.status === "active" ? "text-red-600 hover:text-red-700" : "text-green-900 hover:text-green-700"}`}>
+                              {u.status === "active" ? "Suspend" : "Reinstate"}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -204,6 +270,31 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {meta && meta.totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+              Page {meta.page} of {meta.totalPages} · {meta.total} users
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                disabled={page >= meta.totalPages}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

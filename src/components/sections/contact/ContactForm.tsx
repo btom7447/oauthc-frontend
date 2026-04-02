@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { User, Mail, Tag, MessageSquare, Send, CheckCircle } from "lucide-react";
+import { User, Mail, Tag, MessageSquare, Send, CheckCircle, Loader2 } from "lucide-react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
 
 type FormState = {
   name: string;
@@ -36,6 +38,7 @@ export default function ContactForm() {
     message: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -44,10 +47,16 @@ export default function ContactForm() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(form);
-    setSubmitted(true);
+    setSending(true);
+    const res = await api.post("/contact", form, { auth: false });
+    setSending(false);
+    if (res.ok) {
+      setSubmitted(true);
+    } else {
+      toast.error(res.error || "Failed to send message. Please try again.");
+    }
   };
 
   return (
@@ -158,10 +167,11 @@ export default function ContactForm() {
 
             <button
               type="submit"
-              className="flex items-center justify-center gap-2 w-full md:w-fit md:px-12 py-3.5 bg-green-900 hover:bg-green-800 active:scale-95 text-white font-semibold rounded-lg transition"
+              disabled={sending}
+              className="flex items-center justify-center gap-2 w-full md:w-fit md:px-12 py-3.5 bg-green-900 hover:bg-green-800 active:scale-95 disabled:opacity-60 text-white font-semibold rounded-lg transition"
             >
-              <Send size={16} />
-              Send Message
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {sending ? "Sending…" : "Send Message"}
             </button>
           </form>
         )}

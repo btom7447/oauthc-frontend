@@ -21,7 +21,6 @@ import {
   X,
   Activity,
   FlaskConical,
-  Microscope,
   MapPin,
   GraduationCap,
   Radio,
@@ -84,7 +83,6 @@ const NAV: NavItem[] = [
       { label: "Health Services",   href: "/admin/cms/health-services",    icon: HeartPulse,    roles: ["admin"] },
       { label: "Diseases & Symptoms", href: "/admin/cms/diseases-symptoms", icon: Activity,        roles: ["admin"] },
       { label: "Tests & Procedures",  href: "/admin/cms/tests-procedures",  icon: FlaskConical, roles: ["admin"] },
-      { label: "Research & Ethics",   href: "/admin/cms/research-ethics",   icon: Microscope,   roles: ["admin"] },
       { label: "Locations",           href: "/admin/cms/locations",         icon: MapPin,       roles: ["admin", "staff"] },
       { label: "Schools",             href: "/admin/cms/schools",           icon: GraduationCap, roles: ["admin"] },
       { label: "Marquee",             href: "/admin/cms/marquee",           icon: Radio,        roles: ["admin", "staff"] },
@@ -193,7 +191,7 @@ export default function AdminSidebar({ open, onClose }: Props) {
         {/* Logo */}
         <div className="h-16 flex items-center gap-3 px-5 border-b border-gray-100 shrink-0">
           <div className="w-8 h-8 relative shrink-0">
-            <Image src="/logo.png" alt="OAUTHC" fill className="object-contain" />
+            <Image src="/logo.png" alt="OAUTHC" fill sizes="32px" className="object-contain" />
           </div>
           <div className="min-w-0">
             <p className="text-gray-900 font-bold text-sm leading-tight truncate">OAUTHC</p>

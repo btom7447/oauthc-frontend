@@ -114,30 +114,6 @@ export default function AdminLoginPage() {
             Request access
           </Link>
         </p>
-
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-gray-400 text-[11px]">Demo credentials</span>
-          <div className="flex-1 h-px bg-gray-100" />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {[
-            { role: "Admin", email: "admin@oauthc.gov.ng" },
-            { role: "Staff", email: "staff@oauthc.gov.ng" },
-            { role: "Doctor", email: "doctor@oauthc.gov.ng" },
-          ].map(({ role, email: e }) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => { setEmail(e); setPassword("password"); }}
-              className="flex items-center justify-between border border-gray-100 rounded-xl px-3.5 py-2.5 text-xs hover:border-green-900 hover:bg-green-50 transition group"
-            >
-              <span className="text-gray-700 font-semibold">{role}</span>
-              <span className="text-gray-400 group-hover:text-green-900 transition truncate ml-2">{e}</span>
-            </button>
-          ))}
-        </div>
       </div>
     </AuthLayout>
   );

@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import PageBreadcrumb from "@/components/shared/breadcrumb";
 import HealthServiceSidebar from "@/components/sections/health-service/HealthServiceSidebar";
 import HealthServiceHero from "@/components/sections/health-service/HealthServiceHero";
@@ -5,8 +6,26 @@ import HealthServiceOverview from "@/components/sections/health-service/HealthSe
 import HealthServiceKeyPoints from "@/components/sections/health-service/HealthServiceKeyPoints";
 import HealthServiceApproach from "@/components/sections/health-service/HealthServiceApproach";
 import HealthServiceWhatToExpect from "@/components/sections/health-service/HealthServiceWhatToExpect";
-import HealthServiceCTA from "@/components/sections/health-service/HealthServiceCTA";
-import { ALL_HEALTH_SERVICES, getHealthServiceDetail } from "@/lib/health-services-data";
+import type { HealthServiceItem } from "@/lib/health-services-data";
+
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api";
+
+type APIService = {
+  id: string;
+  title: string;
+  slug: string;
+  image: string;
+  tagline: string;
+  iconKey: string;
+  overview: string[];
+  keyPoints: string[];
+  additionalInfo: string[];
+  whatToExpect: { title: string; detail: string }[];
+};
+
+function toItem(s: APIService): HealthServiceItem {
+  return { name: s.title, slug: s.slug, image: s.image || "", tagline: s.tagline || "", iconKey: s.iconKey || "" };
+}
 
 export default async function HealthServiceDetailPage({
   params,
@@ -14,16 +33,28 @@ export default async function HealthServiceDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const service = getHealthServiceDetail(slug);
+
+  const [detailRes, listRes] = await Promise.all([
+    fetch(`${API}/cms/health-services/${slug}`, { next: { revalidate: 60 } }),
+    fetch(`${API}/cms/health-services?limit=200`, { next: { revalidate: 60 } }),
+  ]);
+
+  if (!detailRes.ok) notFound();
+
+  const detailJson = await detailRes.json();
+  const service: APIService = detailJson.data;
+
+  const listJson = listRes.ok ? await listRes.json() : { data: [] };
+  const allServices: HealthServiceItem[] = (listJson.data || []).map(toItem);
 
   return (
     <>
       <PageBreadcrumb
         bgImage="/images/breadcrumb/health-services.jpg"
-        title={service.name}
+        title={service.title}
         links={[
           { label: "Health Services", href: "/health-services" },
-          { label: service.name },
+          { label: service.title },
         ]}
       />
 
@@ -32,18 +63,26 @@ export default async function HealthServiceDetailPage({
           {/* Main content */}
           <div className="flex-1 min-w-0 flex flex-col gap-12">
             <HealthServiceHero
-              name={service.name}
+              name={service.title}
               tagline={service.tagline}
               image={service.image}
             />
-            <HealthServiceOverview paragraphs={service.overview} />
-            <HealthServiceKeyPoints points={service.keyPoints} />
-            <HealthServiceApproach paragraphs={service.additionalInfo} />
-            <HealthServiceWhatToExpect steps={service.whatToExpect} />
+            {service.overview?.length > 0 && (
+              <HealthServiceOverview paragraphs={service.overview} />
+            )}
+            {service.keyPoints?.length > 0 && (
+              <HealthServiceKeyPoints points={service.keyPoints} />
+            )}
+            {service.additionalInfo?.length > 0 && (
+              <HealthServiceApproach paragraphs={service.additionalInfo} />
+            )}
+            {service.whatToExpect?.length > 0 && (
+              <HealthServiceWhatToExpect steps={service.whatToExpect} />
+            )}
           </div>
 
           {/* Sidebar */}
-          <HealthServiceSidebar services={ALL_HEALTH_SERVICES} />
+          <HealthServiceSidebar services={allServices} />
         </div>
       </section>
     </>

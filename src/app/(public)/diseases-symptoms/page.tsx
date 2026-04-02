@@ -1,37 +1,46 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Search, Info } from "lucide-react";
+import { api } from "@/lib/api-client";
 import PageBreadcrumb from "@/components/shared/breadcrumb";
-import {
-  ALL_DISEASES,
-  getAvailableLetters,
-  searchDiseases,
-  getDiseasesByLetter,
-} from "@/lib/diseases-data";
 
-const AVAILABLE_LETTERS = getAvailableLetters();
+type APIDisease = {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+};
 
 export default function DiseasesSymptomsPage() {
-  const [activeLetter, setActiveLetter] = useState(AVAILABLE_LETTERS[0]);
+  const [diseases, setDiseases] = useState<APIDisease[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeLetter, setActiveLetter] = useState("A");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchDiseases = useCallback(async () => {
+    const res = await api.get<APIDisease[]>("/cms/diseases?limit=500", { auth: false });
+    if (res.ok && res.data) setDiseases(res.data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchDiseases(); }, [fetchDiseases]);
+
+  const ALL_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
   const isSearching = searchQuery.trim().length > 0;
 
-  const searchResults = useMemo(
-    () => (isSearching ? searchDiseases(searchQuery) : []),
-    [searchQuery, isSearching]
-  );
+  const searchResults = useMemo(() => {
+    if (!isSearching) return [];
+    const q = searchQuery.toLowerCase();
+    return diseases.filter((d) => d.name.toLowerCase().includes(q) || d.category?.toLowerCase().includes(q));
+  }, [diseases, searchQuery, isSearching]);
 
-  const letterResults = useMemo(
-    () => (!isSearching ? getDiseasesByLetter(activeLetter) : []),
-    [activeLetter, isSearching]
-  );
-
-  const handleSearch = (q: string) => {
-    setSearchQuery(q);
-  };
+  const letterResults = useMemo(() => {
+    if (isSearching) return [];
+    return diseases.filter((d) => d.name[0]?.toUpperCase() === activeLetter);
+  }, [diseases, activeLetter, isSearching]);
 
   return (
     <>
@@ -68,67 +77,83 @@ export default function DiseasesSymptomsPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search diseases or symptoms..."
               className="w-full bg-white border border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent shadow-sm transition"
             />
           </div>
 
-          {/* A–Z chips — hidden during search */}
-          {!isSearching && (
-            <div className="flex flex-wrap gap-2">
-              {AVAILABLE_LETTERS.map((letter) => (
-                <button
-                  key={letter}
-                  onClick={() => setActiveLetter(letter)}
-                  className={`w-9 h-9 rounded-lg text-sm font-bold transition ${
-                    activeLetter === letter
-                      ? "bg-green-900 text-white shadow-sm"
-                      : "bg-white border border-gray-200 text-gray-600 hover:border-green-900 hover:text-green-900"
-                  }`}
-                >
-                  {letter}
-                </button>
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="bg-white border border-gray-100 rounded-xl px-4 py-3 animate-pulse">
+                  <div className="h-4 w-28 bg-gray-200 rounded mb-1.5" />
+                  <div className="h-3 w-16 bg-gray-100 rounded" />
+                </div>
               ))}
             </div>
-          )}
-
-          {/* Results */}
-          {isSearching ? (
-            <div className="flex flex-col gap-4">
-              <p className="text-gray-500 text-sm">
-                {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for{" "}
-                <span className="font-semibold text-gray-700">"{searchQuery}"</span>
-              </p>
-              {searchResults.length === 0 ? (
-                <p className="text-gray-400 text-sm">No diseases or symptoms match your search.</p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {searchResults.map((disease) => (
-                    <DiseaseChip key={disease.slug} name={disease.name} slug={disease.slug} />
+          ) : (
+            <>
+              {/* A–Z chips — hidden during search */}
+              {!isSearching && (
+                <div className="flex flex-wrap gap-2">
+                  {ALL_LETTERS.map((letter) => (
+                    <button
+                      key={letter}
+                      onClick={() => setActiveLetter(letter)}
+                      className={`w-9 h-9 rounded-lg text-sm font-bold transition ${
+                        activeLetter === letter
+                          ? "bg-green-900 text-white shadow-sm"
+                          : "bg-white border border-gray-200 text-gray-600 hover:border-green-900 hover:text-green-900"
+                      }`}
+                    >
+                      {letter}
+                    </button>
                   ))}
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-6">
-              {/* Letter heading */}
-              <div className="flex items-center gap-4">
-                <span className="text-5xl font-bold font-yeseva text-green-900/20 leading-none">
-                  {activeLetter}
-                </span>
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400">
-                  {letterResults.length} condition{letterResults.length !== 1 ? "s" : ""}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {letterResults.map((disease) => (
-                  <DiseaseChip key={disease.slug} name={disease.name} slug={disease.slug} />
-                ))}
-              </div>
-            </div>
+              {/* Results */}
+              {isSearching ? (
+                <div className="flex flex-col gap-4">
+                  <p className="text-gray-500 text-sm">
+                    {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for{" "}
+                    <span className="font-semibold text-gray-700">&ldquo;{searchQuery}&rdquo;</span>
+                  </p>
+                  {searchResults.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No diseases or symptoms match your search.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {searchResults.map((d) => (
+                        <DiseaseChip key={d.slug} name={d.name} slug={d.slug} category={d.category} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center gap-4">
+                    <span className="text-5xl font-bold font-yeseva text-green-900/20 leading-none">
+                      {activeLetter}
+                    </span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-400">
+                      {letterResults.length} condition{letterResults.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  {letterResults.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No conditions starting with &ldquo;{activeLetter}&rdquo; yet.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {letterResults.map((d) => (
+                        <DiseaseChip key={d.slug} name={d.name} slug={d.slug} category={d.category} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
@@ -136,13 +161,14 @@ export default function DiseasesSymptomsPage() {
   );
 }
 
-function DiseaseChip({ name, slug }: { name: string; slug: string }) {
+function DiseaseChip({ name, slug, category }: { name: string; slug: string; category?: string }) {
   return (
     <Link
       href={`/diseases-symptoms/${slug}`}
-      className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-700 font-medium shadow-sm hover:border-green-900 hover:text-green-900 hover:shadow-md transition leading-snug"
+      className="bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm hover:border-green-900 hover:shadow-md transition"
     >
-      {name}
+      <p className="text-sm text-gray-700 font-medium leading-snug">{name}</p>
+      {category && <p className="text-xs text-gray-400 mt-0.5">{category}</p>}
     </Link>
   );
 }

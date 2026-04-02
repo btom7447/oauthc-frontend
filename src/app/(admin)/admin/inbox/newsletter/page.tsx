@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Mail, Trash2, Download } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
+import { Search, Mail, Trash2, Download, Loader2 } from "lucide-react";
 
 type Subscriber = {
   id: string;
@@ -10,16 +12,7 @@ type Subscriber = {
   status: "active" | "unsubscribed";
 };
 
-const MOCK: Subscriber[] = [
-  { id: "1", email: "chidi@email.com", subscribedAt: "2026-03-10T08:00:00Z", status: "active" },
-  { id: "2", email: "fatima.bello@gmail.com", subscribedAt: "2026-03-12T11:22:00Z", status: "active" },
-  { id: "3", email: "emeka.obi@yahoo.com", subscribedAt: "2026-03-15T09:45:00Z", status: "unsubscribed" },
-  { id: "4", email: "aisha.m@email.com", subscribedAt: "2026-03-18T14:00:00Z", status: "active" },
-  { id: "5", email: "blessing@outlook.com", subscribedAt: "2026-03-20T07:30:00Z", status: "active" },
-  { id: "6", email: "segun.ola@gmail.com", subscribedAt: "2026-03-22T16:10:00Z", status: "active" },
-  { id: "7", email: "chinwe.eze@email.com", subscribedAt: "2026-03-25T10:05:00Z", status: "unsubscribed" },
-  { id: "8", email: "ibrahim.m@email.com", subscribedAt: "2026-03-28T12:33:00Z", status: "active" },
-];
+type Meta = { total: number; page: number; limit: number; totalPages: number };
 
 function downloadCSV(data: Subscriber[]) {
   const headers = ["Email", "Subscribed At", "Status"];
@@ -39,21 +32,56 @@ function downloadCSV(data: Subscriber[]) {
 }
 
 export default function NewsletterInboxPage() {
+  const [items, setItems] = useState<Subscriber[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "unsubscribed">("all");
-  const [items, setItems] = useState(MOCK);
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [page, setPage] = useState(1);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: "50" });
+    if (search) params.set("search", search);
+    if (filter !== "all") params.set("status", filter);
+    const res = await api.get<Subscriber[]>(`/inbox/newsletter?${params}`);
+    if (res.ok && res.data) {
+      setItems(res.data);
+      if (res.meta) setMeta(res.meta as Meta);
+    }
+    setLoading(false);
+  }, [page, search, filter]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const filtered = useMemo(
     () =>
       items.filter((i) => {
         const matchSearch = i.email.toLowerCase().includes(search.toLowerCase());
-        const matchFilter = filter === "all" || i.status === filter;
-        return matchSearch && matchFilter;
+        return matchSearch;
       }),
-    [items, search, filter]
+    [items, search]
   );
 
-  const remove = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
+  const remove = async (id: string) => {
+    const res = await api.del(`/inbox/newsletter/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Subscriber removed");
+    } else {
+      toast.error(res.error || "Failed to remove");
+    }
+  };
+
+  const unsubscribe = async (id: string) => {
+    const res = await api.patch<Subscriber>(`/inbox/newsletter/${id}/unsubscribe`);
+    if (res.ok && res.data) {
+      setItems((prev) => prev.map((i) => (i.id === id ? res.data! : i)));
+      toast.success("Marked as unsubscribed");
+    } else {
+      toast.error(res.error || "Failed to unsubscribe");
+    }
+  };
 
   const activeCount = items.filter((i) => i.status === "active").length;
 
@@ -63,7 +91,7 @@ export default function NewsletterInboxPage() {
         <div>
           <h1 className="text-gray-900 text-xl font-bold">Newsletter Subscribers</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {activeCount} active · {items.length} total
+            {activeCount} active · {meta?.total ?? items.length} total
           </p>
         </div>
         <button
@@ -82,7 +110,7 @@ export default function NewsletterInboxPage() {
             type="text"
             placeholder="Search email…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent bg-white shadow-sm transition"
           />
         </div>
@@ -90,7 +118,7 @@ export default function NewsletterInboxPage() {
           {(["all", "active", "unsubscribed"] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => { setFilter(f); setPage(1); }}
               className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize transition ${
                 filter === f ? "bg-green-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-green-900"
               }`}
@@ -113,7 +141,9 @@ export default function NewsletterInboxPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={4} className="text-center py-12"><Loader2 size={20} className="animate-spin text-gray-400 mx-auto" /></td></tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-center text-gray-400 text-sm py-12">No subscribers found.</td>
                 </tr>
@@ -139,13 +169,23 @@ export default function NewsletterInboxPage() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <button
-                        onClick={() => remove(sub.id)}
-                        className="text-gray-300 hover:text-red-500 transition"
-                        title="Remove"
-                      >
-                        <Trash2 size={14} strokeWidth={1.5} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {sub.status === "active" && (
+                          <button
+                            onClick={() => unsubscribe(sub.id)}
+                            className="text-xs text-gray-400 hover:text-amber-600 font-medium transition"
+                          >
+                            Unsubscribe
+                          </button>
+                        )}
+                        <button
+                          onClick={() => remove(sub.id)}
+                          className="text-gray-300 hover:text-red-500 transition"
+                          title="Remove"
+                        >
+                          <Trash2 size={14} strokeWidth={1.5} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -154,7 +194,6 @@ export default function NewsletterInboxPage() {
           </table>
         </div>
       </div>
-
     </div>
   );
 }

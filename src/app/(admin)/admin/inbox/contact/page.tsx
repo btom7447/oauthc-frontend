@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Mail, Calendar, User, Download } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
+import { Search, Mail, Calendar, User, Download, Trash2, Loader2 } from "lucide-react";
 
 type ContactSubmission = {
   id: string;
@@ -13,13 +15,7 @@ type ContactSubmission = {
   status: "unread" | "read" | "replied";
 };
 
-const MOCK: ContactSubmission[] = [
-  { id: "1", name: "Chidi Okonkwo", email: "chidi@email.com", subject: "Appointment inquiry", message: "I would like to know how to book an appointment with a cardiologist.", submittedAt: "2026-04-01T09:14:00Z", status: "unread" },
-  { id: "2", name: "Fatima Bello", email: "fatima@email.com", subject: "Medical records request", message: "Please how can I get a copy of my discharge summary?", submittedAt: "2026-04-01T11:42:00Z", status: "read" },
-  { id: "3", name: "Emeka Obi", email: "emeka@email.com", subject: "Complaint — long wait times", message: "I waited over 3 hours at the OPD on Wednesday. This is unacceptable.", submittedAt: "2026-04-02T08:05:00Z", status: "unread" },
-  { id: "4", name: "Aisha Mohammed", email: "aisha@email.com", subject: "Compliment", message: "Dr. Adewale and his team were absolutely wonderful. Thank you!", submittedAt: "2026-04-02T14:30:00Z", status: "replied" },
-  { id: "5", name: "Blessing Nwosu", email: "blessing@email.com", subject: "Research partnership", message: "We are a health NGO interested in collaborating on community health programmes.", submittedAt: "2026-04-03T10:18:00Z", status: "unread" },
-];
+type Meta = { total: number; page: number; limit: number; totalPages: number };
 
 const STATUS_STYLES = {
   unread: "bg-blue-50 text-blue-700 border border-blue-100",
@@ -46,9 +42,26 @@ function downloadCSV(data: ContactSubmission[]) {
 }
 
 export default function ContactInboxPage() {
+  const [items, setItems] = useState<ContactSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ContactSubmission | null>(null);
-  const [items, setItems] = useState(MOCK);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState<Meta | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: "50" });
+    if (search) params.set("search", search);
+    const res = await api.get<ContactSubmission[]>(`/inbox/contact?${params}`);
+    if (res.ok && res.data) {
+      setItems(res.data);
+      if (res.meta) setMeta(res.meta as Meta);
+    }
+    setLoading(false);
+  }, [page, search]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const filtered = useMemo(
     () =>
@@ -61,8 +74,36 @@ export default function ContactInboxPage() {
     [items, search]
   );
 
-  const markRead = (id: string) =>
-    setItems((prev) => prev.map((i) => (i.id === id && i.status === "unread" ? { ...i, status: "read" } : i)));
+  const markRead = async (item: ContactSubmission) => {
+    setSelected(item);
+    if (item.status === "unread") {
+      const res = await api.patch<ContactSubmission>(`/inbox/contact/${item.id}/read`);
+      if (res.ok && res.data) {
+        setItems((prev) => prev.map((i) => (i.id === item.id ? res.data! : i)));
+        setSelected(res.data);
+      }
+    }
+  };
+
+  const markReplied = async (id: string) => {
+    const res = await api.patch<ContactSubmission>(`/inbox/contact/${id}/replied`);
+    if (res.ok && res.data) {
+      setItems((prev) => prev.map((i) => (i.id === id ? res.data! : i)));
+      setSelected(res.data);
+      toast.success("Marked as replied");
+    }
+  };
+
+  const remove = async (id: string) => {
+    const res = await api.del(`/inbox/contact/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      if (selected?.id === id) setSelected(null);
+      toast.success("Deleted");
+    } else {
+      toast.error(res.error || "Failed to delete");
+    }
+  };
 
   const unreadCount = items.filter((i) => i.status === "unread").length;
 
@@ -72,7 +113,7 @@ export default function ContactInboxPage() {
         <div>
           <h1 className="text-gray-900 text-xl font-bold">Contact Forms</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {unreadCount} unread · {items.length} total
+            {unreadCount} unread · {meta?.total ?? items.length} total
           </p>
         </div>
         <button
@@ -90,7 +131,7 @@ export default function ContactInboxPage() {
           type="text"
           placeholder="Search name, email, subject…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent bg-white shadow-sm transition"
         />
       </div>
@@ -98,14 +139,24 @@ export default function ContactInboxPage() {
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         {/* List */}
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="px-5 py-4 animate-pulse">
+                  <div className="h-3.5 w-32 bg-gray-200 rounded mb-2" />
+                  <div className="h-2.5 w-48 bg-gray-100 rounded mb-1.5" />
+                  <div className="h-2.5 w-64 bg-gray-50 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No submissions found.</p>
           ) : (
             <ul className="divide-y divide-gray-50">
               {filtered.map((item) => (
                 <li key={item.id}>
                   <button
-                    onClick={() => { setSelected(item); markRead(item.id); }}
+                    onClick={() => markRead(item)}
                     className={`w-full text-left px-5 py-4 hover:bg-gray-50 transition ${selected?.id === item.id ? "bg-green-50" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -152,13 +203,22 @@ export default function ContactInboxPage() {
             <div className="border-t border-gray-100 pt-4">
               <p className="text-gray-700 text-sm leading-relaxed">{selected.message}</p>
             </div>
-            <a
-              href={`mailto:${selected.email}?subject=Re: ${encodeURIComponent(selected.subject)}`}
-              className="flex items-center justify-center gap-2 w-full bg-green-900 hover:bg-green-800 text-white text-sm font-semibold py-2.5 rounded-lg transition"
-            >
-              <Mail size={14} strokeWidth={1.5} />
-              Reply via Email
-            </a>
+            <div className="flex gap-3">
+              <a
+                href={`mailto:${selected.email}?subject=Re: ${encodeURIComponent(selected.subject)}`}
+                onClick={() => markReplied(selected.id)}
+                className="flex items-center justify-center gap-2 flex-1 bg-green-900 hover:bg-green-800 text-white text-sm font-semibold py-2.5 rounded-lg transition"
+              >
+                <Mail size={14} strokeWidth={1.5} />
+                Reply via Email
+              </a>
+              <button
+                onClick={() => remove(selected.id)}
+                className="px-4 py-2.5 border border-gray-200 rounded-lg text-gray-400 hover:text-red-500 hover:border-red-200 transition"
+              >
+                <Trash2 size={14} strokeWidth={1.5} />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-8 flex flex-col items-center justify-center text-center gap-3">

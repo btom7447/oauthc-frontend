@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/admin-auth";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
 import {
   Search, CalendarDays, Clock, User, Stethoscope,
-  CheckCircle, XCircle, RefreshCw, Building2, ChevronDown, X,
+  CheckCircle, XCircle, RefreshCw, Building2, ChevronDown, X, FileText,
 } from "lucide-react";
 
 type Status = "pending" | "confirmed" | "cancelled" | "rescheduled";
@@ -13,38 +15,26 @@ type Appointment = {
   id: string;
   patient: string;
   patientPhone?: string;
+  patientEmail?: string;
+  patientType: "new" | "returning" | "referred";
+  gender: "male" | "female";
+  referralNote?: string;
   date: string;
   time: string;
   department: string;
-  doctor: string;
-  doctorId: string;
+  doctor?: string;
+  doctorId?: string;
   status: Status;
   notes?: string;
+  cancelReason?: string;
+  cancelledBy?: string;
+  rescheduleReason?: string;
+  rescheduledBy?: string;
+  assignNotes?: string;
 };
 
-const DOCTORS = [
-  { id: "3", name: "Dr. Adewale Ojo", department: "Cardiology" },
-  { id: "4", name: "Dr. Ngozi Chukwu", department: "Radiology" },
-  { id: "5", name: "Dr. Tunde Lawal", department: "Neurology" },
-  { id: "6", name: "Dr. Kemi Adeyinka", department: "Ophthalmology" },
-  { id: "7", name: "Dr. Yetunde Abiola", department: "Oncology" },
-];
-
-const DEPARTMENTS = [
-  "Cardiology", "Radiology", "Neurology", "Ophthalmology",
-  "Oncology", "Paediatrics", "Orthopaedics", "Obstetrics & Gynaecology",
-];
-
-const INITIAL: Appointment[] = [
-  { id: "1", patient: "John Adeyemi", patientPhone: "+234 801 234 5678", date: "2026-04-01", time: "09:00", department: "Cardiology", doctor: "Dr. Adewale Ojo", doctorId: "3", status: "confirmed" },
-  { id: "2", patient: "Fatima Bello", patientPhone: "+234 802 345 6789", date: "2026-04-01", time: "10:30", department: "Radiology", doctor: "Dr. Ngozi Chukwu", doctorId: "4", status: "pending" },
-  { id: "3", patient: "Emeka Obi", date: "2026-04-01", time: "11:00", department: "Cardiology", doctor: "Dr. Adewale Ojo", doctorId: "3", status: "confirmed" },
-  { id: "4", patient: "Aisha Mohammed", patientPhone: "+234 803 456 7890", date: "2026-04-02", time: "08:30", department: "Neurology", doctor: "Dr. Tunde Lawal", doctorId: "5", status: "pending" },
-  { id: "5", patient: "Chinwe Eze", date: "2026-04-02", time: "09:45", department: "Cardiology", doctor: "Dr. Adewale Ojo", doctorId: "3", status: "cancelled" },
-  { id: "6", patient: "Segun Olatunji", date: "2026-04-02", time: "14:00", department: "Ophthalmology", doctor: "Dr. Kemi Adeyinka", doctorId: "6", status: "confirmed" },
-  { id: "7", patient: "Blessing Nwosu", patientPhone: "+234 805 678 9012", date: "2026-04-03", time: "10:00", department: "Cardiology", doctor: "Dr. Adewale Ojo", doctorId: "3", status: "pending" },
-  { id: "8", patient: "Ibrahim Musa", date: "2026-04-03", time: "11:30", department: "Oncology", doctor: "Dr. Yetunde Abiola", doctorId: "7", status: "confirmed" },
-];
+type DoctorOption = { id: string; name: string; department: string };
+type DeptOption = { id: string; name: string };
 
 const STATUS_STYLES: Record<Status, string> = {
   pending: "bg-amber-50 text-amber-700 border border-amber-100",
@@ -53,12 +43,22 @@ const STATUS_STYLES: Record<Status, string> = {
   rescheduled: "bg-blue-50 text-blue-700 border border-blue-100",
 };
 
+const PATIENT_TYPE_LABELS: Record<string, string> = {
+  new: "New Patient",
+  returning: "Returning",
+  referred: "Referred",
+};
+
 export default function AppointmentsPage() {
   const { user } = useAuth();
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [doctors, setDoctors] = useState<DoctorOption[]>([]);
+  const [departments, setDepartments] = useState<DeptOption[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [selected, setSelected] = useState<Appointment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Panel sub-state
   const [assignDoctor, setAssignDoctor] = useState("");
@@ -70,72 +70,123 @@ export default function AppointmentsPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [rescheduleNote, setRescheduleNote] = useState("");
 
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("limit", "100");
+    if (search) params.set("search", search);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+
+    const res = await api.get<Appointment[]>(`/appointments?${params.toString()}`);
+    if (res.ok && res.data) setAppointments(res.data);
+    setLoading(false);
+  }, [search, statusFilter]);
+
+  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+
+  // Fetch doctors + departments for assign panel
+  useEffect(() => {
+    (async () => {
+      const [docRes, deptRes] = await Promise.all([
+        api.get<any[]>("/cms/doctors?limit=200", { auth: false }),
+        api.get<DeptOption[]>("/cms/departments?limit=100", { auth: false }),
+      ]);
+      if (docRes.ok && docRes.data) {
+        setDoctors(docRes.data.map((d) => ({ id: d.id, name: d.name, department: d.department })));
+      }
+      if (deptRes.ok && deptRes.data) setDepartments(deptRes.data);
+    })();
+  }, []);
+
   if (!user) return null;
-
-  const source =
-    user.role === "doctor"
-      ? appointments.filter((a) => a.doctorId === user.id)
-      : appointments;
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const filtered = useMemo(
-    () =>
-      source.filter((a) => {
-        const matchesSearch =
-          a.patient.toLowerCase().includes(search.toLowerCase()) ||
-          a.department.toLowerCase().includes(search.toLowerCase()) ||
-          a.doctor.toLowerCase().includes(search.toLowerCase());
-        const matchesStatus = statusFilter === "all" || a.status === statusFilter;
-        return matchesSearch && matchesStatus;
-      }),
-    [source, search, statusFilter]
-  );
 
   const selectAppointment = (a: Appointment) => {
     setSelected(a);
-    setAssignDoctor(a.doctorId);
+    setAssignDoctor(a.doctorId ?? "");
     setAssignDept(a.department);
     setRescheduleDate(a.date);
     setRescheduleTime(a.time);
-    setNotes(a.notes ?? "");
+    setNotes(a.assignNotes ?? "");
     setCancelReason("");
     setRescheduleNote("");
     setPanel("view");
   };
 
-  const update = (id: string, patch: Partial<Appointment>) => {
+  const updateLocal = (id: string, patch: Partial<Appointment>) => {
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
-    setSelected((prev) => prev ? { ...prev, ...patch } : null);
+    setSelected((prev) => prev && prev.id === id ? { ...prev, ...patch } : prev);
   };
 
-  const confirm = () => update(selected!.id, { status: "confirmed" });
-  const confirmCancel = () => {
-    if (!cancelReason.trim()) return;
-    update(selected!.id, { status: "cancelled", notes: cancelReason.trim() });
-    setCancelReason("");
-    setPanel("view");
+  const confirm = async () => {
+    if (!selected) return;
+    setActionLoading(true);
+    const res = await api.patch<Appointment>(`/appointments/${selected.id}/confirm`);
+    if (res.ok && res.data) {
+      updateLocal(selected.id, res.data);
+      toast.success("Appointment confirmed");
+    } else {
+      toast.error(res.error || "Failed to confirm");
+    }
+    setActionLoading(false);
   };
 
-  const saveReschedule = () => {
-    if (!rescheduleDate || !rescheduleTime || !rescheduleNote.trim()) return;
-    update(selected!.id, { date: rescheduleDate, time: rescheduleTime, status: "rescheduled", notes: rescheduleNote.trim() });
-    setRescheduleNote("");
-    setPanel("view");
+  const confirmCancel = async () => {
+    if (!selected || !cancelReason.trim()) return;
+    setActionLoading(true);
+    const res = await api.patch<Appointment>(`/appointments/${selected.id}/cancel`, { reason: cancelReason.trim() });
+    if (res.ok && res.data) {
+      updateLocal(selected.id, res.data);
+      toast.success("Appointment cancelled");
+      setCancelReason("");
+      setPanel("view");
+    } else {
+      toast.error(res.error || "Failed to cancel");
+    }
+    setActionLoading(false);
   };
 
-  const isPending = selected?.status === "pending";
-
-  const saveAssign = () => {
-    const needsReason = !isPending;
-    if (needsReason && !notes.trim()) return;
-    const doc = DOCTORS.find((d) => d.id === assignDoctor);
-    update(selected!.id, {
-      doctor: doc?.name ?? selected!.doctor,
-      doctorId: assignDoctor || selected!.doctorId,
-      department: assignDept || selected!.department,
-      ...(notes.trim() ? { notes: notes.trim() } : {}),
+  const saveReschedule = async () => {
+    if (!selected || !rescheduleDate || !rescheduleTime || !rescheduleNote.trim()) return;
+    setActionLoading(true);
+    const res = await api.patch<Appointment>(`/appointments/${selected.id}/reschedule`, {
+      date: rescheduleDate,
+      time: rescheduleTime,
+      reason: rescheduleNote.trim(),
     });
-    setPanel("view");
+    if (res.ok && res.data) {
+      updateLocal(selected.id, res.data);
+      toast.success("Appointment rescheduled");
+      setRescheduleNote("");
+      setPanel("view");
+    } else {
+      toast.error(res.error || "Failed to reschedule");
+    }
+    setActionLoading(false);
+  };
+
+  const isFirstAssign = !selected?.doctorId;
+
+  const saveAssign = async () => {
+    if (!selected) return;
+    const needsReason = !isFirstAssign;
+    if (needsReason && !notes.trim()) return;
+    setActionLoading(true);
+
+    const doc = doctors.find((d) => d.id === assignDoctor);
+    const res = await api.patch<Appointment>(`/appointments/${selected.id}/assign`, {
+      doctorId: assignDoctor,
+      department: assignDept,
+      doctor: doc?.name,
+      notes: notes.trim() || undefined,
+    });
+    if (res.ok && res.data) {
+      updateLocal(selected.id, res.data);
+      toast.success(isFirstAssign ? "Doctor assigned" : "Appointment reassigned");
+      setPanel("view");
+    } else {
+      toast.error(res.error || "Failed to assign");
+    }
+    setActionLoading(false);
   };
 
   const pendingCount = appointments.filter((a) => a.status === "pending").length;
@@ -157,7 +208,7 @@ export default function AppointmentsPage() {
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" strokeWidth={1.5} />
           <input
             type="text"
-            placeholder="Search patient, doctor, department…"
+            placeholder="Search patient, department…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-lg pl-9 pr-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent bg-white shadow-sm transition"
@@ -196,14 +247,43 @@ export default function AppointmentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gray-200" />
+                          <div className="flex flex-col gap-1">
+                            <div className="h-3 w-24 bg-gray-200 rounded" />
+                            <div className="h-2 w-16 bg-gray-100 rounded" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-col gap-1">
+                          <div className="h-3 w-20 bg-gray-200 rounded" />
+                          <div className="h-2 w-12 bg-gray-100 rounded" />
+                        </div>
+                      </td>
+                      {user.role !== "doctor" && (
+                        <td className="px-4 py-3.5">
+                          <div className="h-3 w-28 bg-gray-200 rounded" />
+                          <div className="h-2 w-16 bg-gray-100 rounded mt-1" />
+                        </td>
+                      )}
+                      <td className="px-4 py-3.5">
+                        <div className="h-5 w-16 bg-gray-200 rounded-full" />
+                      </td>
+                    </tr>
+                  ))
+                ) : appointments.length === 0 ? (
                   <tr>
                     <td colSpan={user.role !== "doctor" ? 4 : 3} className="text-center text-gray-400 text-sm py-12">
                       No appointments found.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((a) => (
+                  appointments.map((a) => (
                     <tr
                       key={a.id}
                       onClick={() => selectAppointment(a)}
@@ -216,7 +296,10 @@ export default function AppointmentsPage() {
                           <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                             <User size={13} strokeWidth={1.5} className="text-gray-500" />
                           </div>
-                          <span className="text-gray-900 font-medium truncate max-w-[120px]">{a.patient}</span>
+                          <div>
+                            <span className="text-gray-900 font-medium truncate max-w-[120px] block">{a.patient}</span>
+                            <span className="text-gray-400 text-[10px] capitalize">{PATIENT_TYPE_LABELS[a.patientType] ?? a.patientType}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3.5">
@@ -233,7 +316,7 @@ export default function AppointmentsPage() {
                       </td>
                       {user.role !== "doctor" && (
                         <td className="px-4 py-3.5">
-                          <span className="text-gray-600 text-xs truncate max-w-[130px] block">{a.doctor}</span>
+                          <span className="text-gray-600 text-xs truncate max-w-[130px] block">{a.doctor || "Unassigned"}</span>
                           <span className="text-gray-400 text-[10px]">{a.department}</span>
                         </td>
                       )}
@@ -253,7 +336,6 @@ export default function AppointmentsPage() {
         {/* Detail panel — right */}
         {selected ? (
           <div className="lg:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-            {/* Panel header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <p className="text-sm font-semibold text-gray-800">Appointment Details</p>
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 transition">
@@ -270,8 +352,16 @@ export default function AppointmentsPage() {
                   </div>
                   <div>
                     <p className="text-gray-900 font-semibold text-sm">{selected.patient}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <span className="capitalize">{selected.gender}</span>
+                      <span>·</span>
+                      <span>{PATIENT_TYPE_LABELS[selected.patientType] ?? selected.patientType}</span>
+                    </div>
                     {selected.patientPhone && (
                       <p className="text-gray-400 text-xs">{selected.patientPhone}</p>
+                    )}
+                    {selected.patientEmail && (
+                      <p className="text-gray-400 text-xs">{selected.patientEmail}</p>
                     )}
                   </div>
                   <span className={`ml-auto px-2.5 py-1 rounded-full text-xs font-semibold capitalize shrink-0 ${STATUS_STYLES[selected.status]}`}>
@@ -290,14 +380,47 @@ export default function AppointmentsPage() {
                   </span>
                   <span className="flex items-center gap-2">
                     <Stethoscope size={12} strokeWidth={1.5} className="text-gray-400" />
-                    {selected.doctor}
+                    {selected.doctor || "Unassigned"}
                   </span>
                 </div>
+
+                {/* Referral note link */}
+                {selected.referralNote && (
+                  <a
+                    href={selected.referralNote}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 hover:bg-blue-100 transition"
+                  >
+                    <FileText size={13} strokeWidth={1.5} />
+                    View Referral Note
+                  </a>
+                )}
 
                 {selected.notes && (
                   <div>
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Notes</p>
                     <p className="text-gray-600 text-xs leading-relaxed">{selected.notes}</p>
+                  </div>
+                )}
+
+                {selected.status === "cancelled" && selected.cancelReason && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-red-400 uppercase tracking-wide mb-1">
+                      Cancellation Reason
+                      {selected.cancelledBy && <span className="normal-case text-gray-400 font-normal"> — by {selected.cancelledBy}</span>}
+                    </p>
+                    <p className="text-gray-600 text-xs leading-relaxed">{selected.cancelReason}</p>
+                  </div>
+                )}
+
+                {selected.status === "rescheduled" && selected.rescheduleReason && (
+                  <div>
+                    <p className="text-[11px] font-semibold text-blue-400 uppercase tracking-wide mb-1">
+                      Reschedule Reason
+                      {selected.rescheduledBy && <span className="normal-case text-gray-400 font-normal"> — by {selected.rescheduledBy}</span>}
+                    </p>
+                    <p className="text-gray-600 text-xs leading-relaxed">{selected.rescheduleReason}</p>
                   </div>
                 )}
 
@@ -310,7 +433,8 @@ export default function AppointmentsPage() {
                       {selected.status !== "confirmed" && selected.status !== "cancelled" && (
                         <button
                           onClick={confirm}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 border border-green-100 text-green-800 text-xs font-semibold rounded-lg hover:bg-green-100 transition"
+                          disabled={actionLoading}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 border border-green-100 text-green-800 text-xs font-semibold rounded-lg hover:bg-green-100 disabled:opacity-50 transition"
                         >
                           <CheckCircle size={13} strokeWidth={1.5} />
                           Confirm
@@ -337,7 +461,7 @@ export default function AppointmentsPage() {
                         className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-100 transition"
                       >
                         <Stethoscope size={13} strokeWidth={1.5} />
-                        {selected.status === "pending" ? "Assign" : "Reassign"}
+                        {selected.doctorId ? "Reassign" : "Assign"}
                       </button>
                     </div>
                   </div>
@@ -383,29 +507,29 @@ export default function AppointmentsPage() {
                   </div>
                 </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
-                      Reason for Reschedule <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={rescheduleNote}
-                      onChange={(e) => setRescheduleNote(e.target.value)}
-                      rows={3}
-                      placeholder="Explain why this appointment is being rescheduled…"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 resize-none bg-white transition"
-                    />
-                    {rescheduleNote.trim() === "" && (
-                      <p className="text-[11px] text-red-500 mt-1">A reason is required to reschedule.</p>
-                    )}
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+                    Reason for Reschedule <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rescheduleNote}
+                    onChange={(e) => setRescheduleNote(e.target.value)}
+                    rows={3}
+                    placeholder="Explain why this appointment is being rescheduled…"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 resize-none bg-white transition"
+                  />
+                  {rescheduleNote.trim() === "" && (
+                    <p className="text-[11px] text-red-500 mt-1">A reason is required to reschedule.</p>
+                  )}
+                </div>
 
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={saveReschedule}
-                    disabled={!rescheduleDate || !rescheduleTime || !rescheduleNote.trim()}
+                    disabled={!rescheduleDate || !rescheduleTime || !rescheduleNote.trim() || actionLoading}
                     className="flex-1 bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-xs font-semibold py-2.5 rounded-lg transition"
                   >
-                    Save Reschedule
+                    {actionLoading ? "Saving…" : "Save Reschedule"}
                   </button>
                   <button
                     onClick={() => setPanel("view")}
@@ -446,10 +570,10 @@ export default function AppointmentsPage() {
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={confirmCancel}
-                    disabled={!cancelReason.trim()}
+                    disabled={!cancelReason.trim() || actionLoading}
                     className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold py-2.5 rounded-lg transition"
                   >
-                    Confirm Cancellation
+                    {actionLoading ? "Cancelling…" : "Confirm Cancellation"}
                   </button>
                   <button
                     onClick={() => setPanel("view")}
@@ -467,7 +591,7 @@ export default function AppointmentsPage() {
                   <button onClick={() => setPanel("view")} className="text-gray-400 hover:text-gray-600 transition">
                     <X size={14} strokeWidth={1.5} />
                   </button>
-                  <p className="text-sm font-semibold text-gray-800">{isPending ? "Assign Appointment" : "Reassign Appointment"}</p>
+                  <p className="text-sm font-semibold text-gray-800">{isFirstAssign ? "Assign Appointment" : "Reassign Appointment"}</p>
                 </div>
                 <p className="text-xs text-gray-500">Patient: <span className="font-medium text-gray-700">{selected.patient}</span></p>
 
@@ -482,7 +606,7 @@ export default function AppointmentsPage() {
                         className="w-full border border-gray-200 rounded-lg pl-9 pr-8 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-white appearance-none transition"
                       >
                         <option value="">— Select department —</option>
-                        {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                        {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
                       </select>
                       <ChevronDown size={12} strokeWidth={1.5} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
@@ -497,14 +621,16 @@ export default function AppointmentsPage() {
                         className="w-full border border-gray-200 rounded-lg pl-9 pr-8 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-white appearance-none transition"
                       >
                         <option value="">— Select doctor —</option>
-                        {DOCTORS.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.department})</option>
-                        ))}
+                        {doctors
+                          .filter((d) => !assignDept || d.department === assignDept)
+                          .map((d) => (
+                            <option key={d.id} value={d.id}>{d.name} ({d.department})</option>
+                          ))}
                       </select>
                       <ChevronDown size={12} strokeWidth={1.5} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
                   </div>
-                  {!isPending && (
+                  {!isFirstAssign && (
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
                         Reason for Reassignment <span className="text-red-500">*</span>
@@ -526,10 +652,10 @@ export default function AppointmentsPage() {
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={saveAssign}
-                    disabled={!isPending && !notes.trim()}
+                    disabled={(!isFirstAssign && !notes.trim()) || actionLoading}
                     className="flex-1 bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-xs font-semibold py-2.5 rounded-lg transition"
                   >
-                    {isPending ? "Assign" : "Save Reassignment"}
+                    {actionLoading ? "Saving…" : isFirstAssign ? "Assign" : "Save Reassignment"}
                   </button>
                   <button
                     onClick={() => setPanel("view")}

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Plus, Megaphone, Pencil, Trash2, X } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { api } from "@/lib/api-client";
+import toast from "react-hot-toast";
+import { Search, Plus, Megaphone, Pencil, Trash2, X, Loader2 } from "lucide-react";
 import ImageUpload from "@/components/admin/ImageUpload";
 
 type AnnouncementStatus = "active" | "draft" | "expired";
@@ -18,17 +20,6 @@ type Announcement = {
   featured: boolean;
 };
 
-const MOCK: Announcement[] = [
-  { id: "1", title: "Hospital Upgrade Notice", body: "Our radiology wing will undergo maintenance from April 5–7. Services will be temporarily limited.", date: "2026-03-28", status: "active", priority: "normal", image: "", link: "", featured: false },
-  { id: "2", title: "COVID-19 Booster Campaign", body: "Free booster vaccines available at OPD every Saturday, 9am–1pm.", date: "2026-03-20", status: "active", priority: "urgent", image: "", link: "", featured: false },
-  { id: "3", title: "New Specialist Clinic Opening", body: "Our new Endocrinology specialist clinic opens April 10. Book appointments via the portal.", date: "2026-03-15", status: "active", priority: "normal", image: "", link: "", featured: false },
-  { id: "4", title: "Blood Donation Drive", body: "Annual blood donation drive scheduled for April 20 at the main hall.", date: "2026-03-10", status: "draft", priority: "normal", image: "", link: "", featured: false },
-  { id: "5", title: "Pharmacy Operating Hours", body: "The hospital pharmacy will now operate 24/7 starting April 1.", date: "2026-02-28", status: "expired", priority: "normal", image: "", link: "", featured: false },
-  { id: "6", title: "Emergency Ward Expansion", body: "The A&E ward has been expanded. New triage protocols are now in effect.", date: "2026-02-10", status: "active", priority: "urgent", image: "", link: "", featured: false },
-  { id: "7", title: "Staff Training Day", body: "All non-emergency staff are requested to attend the CPD training on April 12.", date: "2026-03-25", status: "draft", priority: "normal", image: "", link: "", featured: false },
-  { id: "8", title: "Visiting Hours Update", body: "Visiting hours are now 10am–12pm and 4pm–6pm daily.", date: "2026-01-15", status: "expired", priority: "normal", image: "", link: "", featured: false },
-];
-
 const STATUS_STYLES: Record<AnnouncementStatus, string> = {
   active: "bg-green-50 text-green-800 border border-green-100",
   draft: "bg-gray-100 text-gray-500 border border-gray-200",
@@ -40,11 +31,24 @@ const EMPTY: Omit<Announcement, "id"> = { title: "", body: "", date: "", status:
 const inputCls = "border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-green-700 bg-gray-50";
 
 export default function AnnouncementsPage() {
-  const [items, setItems] = useState(MOCK);
+  const [items, setItems] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<AnnouncementStatus | "all">("all");
   const [panel, setPanel] = useState<{ mode: "new" | "edit"; data: Omit<Announcement, "id"> & { id?: string } } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    const res = await api.get<Announcement[]>("/admin/cms/announcements?limit=200");
+    if (res.ok && res.data) {
+      setItems(res.data.map((a) => ({ ...a, date: a.date ? a.date.slice(0, 10) : "" })));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const filtered = useMemo(() =>
     items.filter((i) => {
@@ -56,17 +60,55 @@ export default function AnnouncementsPage() {
   const openNew = () => setPanel({ mode: "new", data: { ...EMPTY } });
   const openEdit = (item: Announcement) => setPanel({ mode: "edit", data: { ...item } });
 
-  const save = () => {
+  const save = async () => {
     if (!panel) return;
-    if (panel.mode === "new") {
-      setItems((prev) => [{ ...panel.data, id: String(Date.now()) } as Announcement, ...prev]);
-    } else {
-      setItems((prev) => prev.map((i) => i.id === panel.data.id ? { ...panel.data } as Announcement : i));
+    setSaving(true);
+
+    // If marking as featured, unfeature the current featured item first
+    if (panel.data.featured) {
+      const currentFeatured = items.find((i) => i.featured && i.id !== panel.data.id);
+      if (currentFeatured) {
+        const ufRes = await api.patch<Announcement>(`/admin/cms/announcements/${currentFeatured.id}`, { featured: false });
+        if (ufRes.ok) {
+          setItems((prev) => prev.map((i) => i.id === currentFeatured.id ? { ...i, featured: false } : i));
+        }
+      }
     }
+
+    const payload = { ...panel.data };
+    if (panel.mode === "new") {
+      const res = await api.post<Announcement>("/admin/cms/announcements", payload);
+      if (res.ok && res.data) {
+        setItems((prev) => [{ ...res.data!, date: res.data!.date?.slice(0, 10) ?? "" }, ...prev]);
+        toast.success("Announcement created");
+      } else {
+        toast.error(res.error || "Failed to create");
+      }
+    } else {
+      const res = await api.patch<Announcement>(`/admin/cms/announcements/${panel.data.id}`, payload);
+      if (res.ok && res.data) {
+        const updated = { ...res.data!, date: res.data!.date?.slice(0, 10) ?? "" };
+        setItems((prev) => prev.map((i) => i.id === panel.data.id ? updated : i));
+        toast.success("Announcement updated");
+      } else {
+        toast.error(res.error || "Failed to update");
+      }
+    }
+    setSaving(false);
     setPanel(null);
   };
 
-  const remove = (id: string) => { setItems((prev) => prev.filter((i) => i.id !== id)); setDeleteId(null); };
+  const remove = async (id: string) => {
+    const res = await api.del(`/admin/cms/announcements/${id}`);
+    if (res.ok) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      toast.success("Announcement deleted");
+      if (panel?.data.id === id) setPanel(null);
+    } else {
+      toast.error(res.error || "Failed to delete");
+    }
+    setDeleteId(null);
+  };
 
   const setField = (k: string, v: string) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
   const setBool = (k: string, v: boolean) => setPanel((p) => p ? { ...p, data: { ...p.data, [k]: v } } : p);
@@ -97,7 +139,20 @@ export default function AnnouncementsPage() {
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-5 py-4 animate-pulse">
+                  <div className="flex-1">
+                    <div className="h-3.5 w-40 bg-gray-200 rounded mb-2" />
+                    <div className="h-2.5 w-64 bg-gray-100 rounded mb-2" />
+                    <div className="h-2 w-20 bg-gray-100 rounded" />
+                  </div>
+                  <div className="flex gap-1"><div className="w-6 h-6 bg-gray-100 rounded" /><div className="w-6 h-6 bg-gray-100 rounded" /></div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-12">No announcements found.</p>
           ) : (
             <ul className="divide-y divide-gray-50">
@@ -111,7 +166,7 @@ export default function AnnouncementsPage() {
                     <p className="text-gray-400 text-xs mt-0.5 line-clamp-1">{item.body}</p>
                     <div className="flex items-center gap-3 mt-1.5">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[item.status]}`}>{item.status}</span>
-                      <span className="text-[10px] text-gray-400">{new Date(item.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      <span className="text-[10px] text-gray-400">{item.date ? new Date(item.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""}</span>
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -183,13 +238,17 @@ export default function AnnouncementsPage() {
                       onChange={(e) => setBool("featured", e.target.checked)}
                       className="w-4 h-4 rounded accent-green-900 cursor-pointer"
                     />
-                    <span className="text-sm text-gray-600">Show in homepage carousel</span>
+                    <span className="text-sm text-gray-600">Large card on homepage</span>
                   </label>
+                  {panel.data.featured && items.some((i) => i.featured && i.id !== panel.data.id) && (
+                    <p className="text-[11px] text-amber-600">This will replace the current featured announcement.</p>
+                  )}
                 </div>
               </div>
             </div>
 
-            <button onClick={save} disabled={!panel.data.title} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition">
+            <button onClick={save} disabled={!panel.data.title || saving} className="w-full bg-green-900 hover:bg-green-800 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+              {saving && <Loader2 size={14} className="animate-spin" />}
               {panel.mode === "new" ? "Create Announcement" : "Save Changes"}
             </button>
           </div>

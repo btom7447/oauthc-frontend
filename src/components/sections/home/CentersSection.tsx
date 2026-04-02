@@ -2,88 +2,63 @@
 
 import { useEffect, useState } from "react";
 import { MapPin } from "lucide-react";
+import { api } from "@/lib/api-client";
 import { CenterCardSkeleton } from "@/components/skeleton/CenterCardSkeleton";
 
-// CMS type — replace fetch logic with your CMS client
-export type Center = {
+type APILocation = {
   id: string;
   name: string;
-  address: string;
-  image: string;
   slug: string;
+  image: string;
+  address: string;
+  type: "main" | "department" | "centre";
 };
 
-function CenterCard({ center }: { center: Center }) {
+function CenterCard({ loc }: { loc: APILocation }) {
   return (
     <a
-      href={`/locations/${center.slug}`}
+      href={`/locations`}
       className="group relative block rounded-xl overflow-hidden aspect-4/3 bg-gray-900"
     >
       {/* Background image */}
-      <img
-        src={center.image}
-        alt={center.name}
-        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-      />
+      {loc.image ? (
+        <img
+          src={loc.image}
+          alt={loc.name}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gray-800" />
+      )}
 
       {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/40 group-hover:bg-black/55 transition-colors duration-300" />
 
       {/* Text */}
       <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-        <h3 className="font-semibold text-lg leading-snug">{center.name}</h3>
+        <h3 className="font-semibold text-lg leading-snug">{loc.name}</h3>
         <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-300">
           <MapPin size={12} className="shrink-0" />
-          {center.address}
+          {loc.address}
         </p>
       </div>
     </a>
   );
 }
 
-async function fetchCenters(): Promise<Center[]> {
-  // TODO: replace with CMS fetch, e.g. await client.fetch(groq`*[_type == "center"]`)
-  return [
-    {
-      id: "1",
-      name: "OAUTHC Main Campus",
-      address: "Ile-Ife, Osun State",
-      image: "/images/centers/ife-unit.png",
-      slug: "main-campus",
-    },
-    {
-      id: "2",
-      name: "Wesley Guild Hospital",
-      address: "Ilesa, Osun State",
-      image: "/images/centers/ife-unit.png",
-      slug: "wesley-guild",
-    },
-    {
-      id: "3",
-      name: "Urban Comprehensive Health Centre",
-      address: "Ile-Ife, Osun State",
-      image: "/images/centers/ife-unit.png",
-      slug: "urban-health-centre",
-    },
-    {
-      id: "4",
-      name: "Dental Centre",
-      address: "Ile-Ife, Osun State",
-      image: "/images/centers/ife-unit.png",
-      slug: "dental-centre",
-    },
-  ];
-}
-
 export default function CentersSection() {
-  const [centers, setCenters] = useState<Center[]>([]);
+  const [centers, setCenters] = useState<APILocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchCenters().then((data) => {
-      setCenters(data);
+    (async () => {
+      const res = await api.get<APILocation[]>("/cms/locations?limit=100", { auth: false });
+      if (res.ok && res.data) {
+        // Exclude department type — only main campuses and centres
+        setCenters(res.data.filter((l) => l.type !== "department"));
+      }
       setLoading(false);
-    });
+    })();
   }, []);
 
   return (
@@ -105,8 +80,8 @@ export default function CentersSection() {
             ? Array.from({ length: 4 }).map((_, i) => (
                 <CenterCardSkeleton key={i} />
               ))
-            : centers.map((center) => (
-                <CenterCard key={center.id} center={center} />
+            : centers.map((loc) => (
+                <CenterCard key={loc.id} loc={loc} />
               ))}
         </div>
       </div>

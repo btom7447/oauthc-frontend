@@ -5,8 +5,10 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   ReactNode,
 } from "react";
+import { api, tokens } from "@/lib/api-client";
 
 export type Role = "admin" | "staff" | "doctor";
 
@@ -20,48 +22,24 @@ export type AuthUser = {
   department?: string;
 };
 
-const MOCK_USERS: (AuthUser & { password: string })[] = [
-  {
-    id: "1",
-    name: "Emeka Okafor",
-    email: "admin@oauthc.gov.ng",
-    password: "password",
-    role: "admin",
-  },
-  {
-    id: "2",
-    name: "Amaka Nwosu",
-    email: "staff@oauthc.gov.ng",
-    password: "password",
-    role: "staff",
-  },
-  {
-    id: "3",
-    name: "Dr. Adewale Ojo",
-    email: "doctor@oauthc.gov.ng",
-    password: "password",
-    role: "doctor",
-    specialty: "Cardiology",
-    department: "Cardiology",
-  },
-  {
-    id: "4",
-    name: "Dr. Ngozi Chukwu",
-    email: "doctor2@oauthc.gov.ng",
-    password: "password",
-    role: "doctor",
-    specialty: "Radiology",
-    department: "Radiology",
-  },
-];
-
 type AuthContextType = {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<{ error?: string }>;
+  signup: (data: SignupData) => Promise<{ error?: string }>;
   logout: () => void;
   updateUser: (patch: Partial<AuthUser>) => void;
   isLoading: boolean;
 };
+
+type SignupData = {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  department?: string;
+};
+
+const USER_KEY = "oauthc_admin_user";
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -69,47 +47,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Hydrate from localStorage + validate with /auth/me
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("oauthc_admin_user");
-      if (stored) setUser(JSON.parse(stored));
-    } catch {
-      // ignore
-    }
-    setIsLoading(false);
+    const hydrate = async () => {
+      try {
+        const stored = localStorage.getItem(USER_KEY);
+        const hasToken = tokens.getAccess();
+
+        if (stored && hasToken) {
+          // Show cached user immediately for fast UI
+          setUser(JSON.parse(stored));
+
+          // Validate token is still good
+          const res = await api.get<AuthUser>("/auth/me");
+          if (res.ok && res.data) {
+            const freshUser = res.data;
+            setUser(freshUser);
+            localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+          } else {
+            // Token invalid and refresh failed — clean up
+            setUser(null);
+            localStorage.removeItem(USER_KEY);
+            tokens.clear();
+          }
+        }
+      } catch {
+        // ignore hydration errors
+      }
+      setIsLoading(false);
+    };
+    hydrate();
   }, []);
 
-  const login = async (
+  // Listen for forced logout from api-client (expired refresh token)
+  useEffect(() => {
+    const handleForceLogout = () => {
+      setUser(null);
+      localStorage.removeItem(USER_KEY);
+    };
+    window.addEventListener("auth:logout", handleForceLogout);
+    return () => window.removeEventListener("auth:logout", handleForceLogout);
+  }, []);
+
+  const login = useCallback(async (
     email: string,
     password: string
   ): Promise<{ error?: string }> => {
-    const found = MOCK_USERS.find(
-      (u) => u.email === email && u.password === password
+    const res = await api.post<{ token: string; refreshToken: string; user: AuthUser }>(
+      "/auth/login",
+      { email, password },
+      { auth: false }
     );
-    if (!found) return { error: "Invalid email or password." };
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _pw, ...authUser } = found;
-    setUser(authUser);
-    localStorage.setItem("oauthc_admin_user", JSON.stringify(authUser));
+
+    if (!res.ok || !res.data) {
+      return { error: res.error || "Login failed" };
+    }
+
+    tokens.set(res.data.token, res.data.refreshToken);
+    setUser(res.data.user);
+    localStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
     return {};
-  };
+  }, []);
 
-  const logout = () => {
+  const signup = useCallback(async (data: SignupData): Promise<{ error?: string }> => {
+    const res = await api.post("/auth/signup", data, { auth: false });
+    if (!res.ok) {
+      return { error: res.error || "Signup failed" };
+    }
+    return {};
+  }, []);
+
+  const logout = useCallback(async () => {
+    const refreshToken = tokens.getRefresh();
+    // Fire and forget — don't block UI on this
+    api.post("/auth/logout", { refreshToken }).catch(() => {});
     setUser(null);
-    localStorage.removeItem("oauthc_admin_user");
-  };
+    localStorage.removeItem(USER_KEY);
+    tokens.clear();
+  }, []);
 
-  const updateUser = (patch: Partial<AuthUser>) => {
+  const updateUser = useCallback((patch: Partial<AuthUser>) => {
     setUser((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, ...patch };
-      localStorage.setItem("oauthc_admin_user", JSON.stringify(updated));
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser, isLoading }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -129,7 +156,6 @@ export type CmsSection =
   | "health-services"
   | "diseases-symptoms"
   | "tests-procedures"
-  | "research-ethics"
   | "locations"
   | "schools"
   | "marquee";
@@ -141,7 +167,6 @@ const CMS_ACCESS: Record<CmsSection, Role[]> = {
   "health-services":   ["admin"],
   "diseases-symptoms": ["admin"],
   "tests-procedures":  ["admin"],
-  "research-ethics":   ["admin", "staff"],
   locations:           ["admin", "staff"],
   schools:             ["admin"],
   marquee:             ["admin", "staff"],

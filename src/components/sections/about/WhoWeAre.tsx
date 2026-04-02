@@ -17,7 +17,7 @@ export default function WhoWeAreSection() {
           />
           {/* Floating accent badge */}
           <div className="absolute bottom-6 -right-4 bg-green-900 text-white px-5 py-4 rounded-xl shadow-lg hidden md:flex flex-col gap-0.5">
-            <span className="text-3xl font-bold">30+</span>
+            <span className="text-3xl font-bold">50+</span>
             <span className="text-xs text-green-300 uppercase tracking-wide">Years of Excellence</span>
           </div>
         </div>

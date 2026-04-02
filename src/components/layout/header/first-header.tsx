@@ -15,7 +15,7 @@ export default function FirstHeader() {
   return (
     <div className="first-header bg-white flex justify-between items-center px-6 py-4 border-b">
       {/* Left */}
-      <div className="f-header-left hidden lg:flex items-center gap-3">
+      <div className="f-header-left hidden xl:flex items-center gap-3">
         <Image src="/logo.png" alt="OAUTHC Logo" width={50} height={50} />
 
         <h4 className="text-2xl text-green-900 uppercase font-bold font-yeseva">

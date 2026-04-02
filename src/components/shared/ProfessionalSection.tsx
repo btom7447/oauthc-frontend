@@ -3,6 +3,7 @@
 import useEmblaCarousel from "embla-carousel-react";
 import { useEffect, useState } from "react";
 import ProfessionalCard, { ProfessionalCardSkeleton } from "./ProfessionalCard";
+import { api } from "@/lib/api-client";
 
 type Professional = {
   name: string;
@@ -16,36 +17,14 @@ type Professional = {
   };
 };
 
-const mockProfessionals: Professional[] = [
-  {
-    name: "Dr. Sarah Johnson",
-    role: "Cardiologist",
-    slug: "dr-sarah-johnson",
-    image: "/images/doctors/test-doctor.png",
-    social: { linkedin: "#", facebook: "#", instagram: "#" },
-  },
-  {
-    name: "Dr. Michael Lee",
-    role: "Neurologist",
-    slug: "dr-michael-lee",
-    image: "/images/doctors/test-doctor.png",
-    social: { linkedin: "#", facebook: "#", instagram: "#" },
-  },
-  {
-    name: "Dr. Amina Bello",
-    role: "Pediatrician",
-    slug: "dr-amina-bello",
-    image: "/images/doctors/test-doctor.png",
-    social: { linkedin: "#", instagram: "#" },
-  },
-  {
-    name: "Dr. Chukwuma Eze",
-    role: "Orthopedic Surgeon",
-    slug: "dr-chukwuma-eze",
-    image: "/images/doctors/test-doctor.png",
-    social: { linkedin: "#", facebook: "#" },
-  },
-];
+type DoctorAPI = {
+  id: string;
+  name: string;
+  slug: string;
+  image: string;
+  specialty: string;
+  social?: { linkedin?: string; facebook?: string; instagram?: string };
+};
 
 export default function ProfessionalsSection() {
   const [data, setData] = useState<Professional[]>([]);
@@ -57,11 +36,21 @@ export default function ProfessionalsSection() {
   });
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setData(mockProfessionals);
+    (async () => {
+      const res = await api.get<DoctorAPI[]>("/cms/doctors?limit=8", { auth: false });
+      if (res.ok && res.data) {
+        setData(
+          res.data.map((d) => ({
+            name: d.name,
+            role: d.specialty,
+            slug: d.slug,
+            image: d.image || "/images/doctors/test-doctor.png",
+            social: d.social,
+          }))
+        );
+      }
       setLoading(false);
-    }, 1200);
-    return () => clearTimeout(timer);
+    })();
   }, []);
 
   useEffect(() => {
@@ -85,7 +74,6 @@ export default function ProfessionalsSection() {
 
         {/* Carousel */}
         {loading ? (
-          // Skeleton grid mirrors carousel breakpoints
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 3 }).map((_, i) => (
               <ProfessionalCardSkeleton key={i} />

@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Megaphone, Stethoscope, Building2, HeartPulse,
   ArrowRight, ShieldOff, Activity, FlaskConical,
-  Microscope, MapPin, GraduationCap, Radio,
+  MapPin, GraduationCap, Radio,
 } from "lucide-react";
 
 const CMS_SECTIONS = [
@@ -63,15 +63,6 @@ const CMS_SECTIONS = [
     count: "27 entries",
     color: "text-violet-600",
     bg: "bg-violet-50",
-  },
-  {
-    label: "Research Ethics",
-    href: "/admin/cms/research-ethics",
-    icon: Microscope,
-    description: "Edit research ethics committee information and requirements.",
-    count: "1 page",
-    color: "text-teal-700",
-    bg: "bg-teal-50",
   },
   {
     label: "Locations",

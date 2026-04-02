@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/admin-auth";
 import AuthLayout from "@/components/admin/AuthLayout";
 import { User, Mail, Lock, Eye, EyeOff, Building2, ChevronDown, ArrowRight, AlertCircle, CheckCircle } from "lucide-react";
 
@@ -20,6 +21,7 @@ function getStrength(pw: string): { score: number; label: string; color: string 
 const inputCls = "w-full border border-gray-200 rounded-xl bg-gray-50 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-700 focus:border-transparent transition";
 
 export default function SignupPage() {
+  const { signup } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", role: "", department: "", password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -41,9 +43,19 @@ export default function SignupPage() {
     if (strength.score < 2) { setError("Please choose a stronger password."); return; }
     setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
+    const result = await signup({
+      name: form.name,
+      email: form.email,
+      password: form.password,
+      role: form.role,
+      department: form.department || undefined,
+    });
     setLoading(false);
-    setDone(true);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setDone(true);
+    }
   };
 
   if (done) {

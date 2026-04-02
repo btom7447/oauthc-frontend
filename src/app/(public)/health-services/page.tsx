@@ -1,24 +1,46 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { api } from "@/lib/api-client";
 import PageBreadcrumb from "@/components/shared/breadcrumb";
 import FilteredGrid from "@/components/shared/FilteredGrid";
 import HealthServiceCard from "@/components/cards/HealthServiceCard";
 import HealthServiceCardSkeleton from "@/components/skeleton/HealthServiceCardSkeleton";
-import { ALL_HEALTH_SERVICES, type HealthServiceItem } from "@/lib/health-services-data";
+import type { HealthServiceItem } from "@/lib/health-services-data";
+
+type APIService = {
+  id: string;
+  title: string;
+  slug: string;
+  image: string;
+  tagline: string;
+  iconKey: string;
+};
 
 const PER_PAGE = 12;
 
 export default function HealthServicesPage() {
+  const [services, setServices] = useState<HealthServiceItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1000);
-    return () => clearTimeout(timer);
+  const fetchServices = useCallback(async () => {
+    const res = await api.get<APIService[]>("/cms/health-services?limit=200", { auth: false });
+    if (res.ok && res.data) {
+      setServices(res.data.map((s) => ({
+        name: s.title,
+        slug: s.slug,
+        image: s.image || "",
+        tagline: s.tagline || "",
+        iconKey: s.iconKey || "",
+      })));
+    }
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => { fetchServices(); }, [fetchServices]);
 
   const handleSearch = (q: string) => {
     setSearchQuery(q);
@@ -33,15 +55,15 @@ export default function HealthServicesPage() {
   const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
     const results = q
-      ? ALL_HEALTH_SERVICES.filter((s) => s.name.toLowerCase().includes(q))
-      : [...ALL_HEALTH_SERVICES];
+      ? services.filter((s) => s.name.toLowerCase().includes(q))
+      : [...services];
 
     results.sort((a, b) =>
       sort === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
     );
 
     return results;
-  }, [searchQuery, sort]);
+  }, [services, searchQuery, sort]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PER_PAGE));
