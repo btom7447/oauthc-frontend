@@ -37,6 +37,7 @@ export default function UsersPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; openUp: boolean } | null>(null);
   const [page, setPage] = useState(1);
 
   const fetchUsers = useCallback(async () => {
@@ -115,7 +116,7 @@ export default function UsersPage() {
   const activeCount = meta?.total ?? users.length;
 
   return (
-    <div className="flex flex-col gap-6" onClick={() => setOpenDropdown(null)}>
+    <div className="flex flex-col gap-6" onClick={() => { setOpenDropdown(null); setDropdownPos(null); }}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-gray-900 text-xl font-bold">User Management</h1>
@@ -211,25 +212,30 @@ export default function UsersPage() {
                     </td>
 
                     <td className="px-5 py-3.5">
-                      <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+                      <div className="inline-block" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => setOpenDropdown(openDropdown === u.id ? null : u.id)}
+                          onClick={(e) => {
+                            if (openDropdown === u.id) {
+                              setOpenDropdown(null);
+                              setDropdownPos(null);
+                            } else {
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              const spaceBelow = window.innerHeight - rect.bottom;
+                              const openUp = spaceBelow < 140;
+                              setDropdownPos({
+                                top: openUp ? rect.top : rect.bottom + 4,
+                                left: rect.left,
+                                openUp,
+                              });
+                              setOpenDropdown(u.id);
+                            }
+                          }}
                           disabled={u.id === user.id || u.status === "pending"}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${ROLE_STYLES[u.role]} ${u.id === user.id || u.status === "pending" ? "cursor-default" : "hover:opacity-80 transition"}`}
                         >
                           {roleLabel(u.role)}
                           {u.id !== user.id && u.status !== "pending" && <ChevronDown size={11} strokeWidth={2} />}
                         </button>
-                        {openDropdown === u.id && (
-                          <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-100 rounded-lg shadow-lg z-50 py-1 min-w-35">
-                            {ROLES.map((r) => (
-                              <button key={r} onClick={() => changeRole(u.id, r)} className="w-full flex items-center gap-2 px-3 py-2 text-xs capitalize text-gray-700 hover:bg-gray-50 transition">
-                                {u.role === r && <Check size={11} className="text-green-900 shrink-0" />}
-                                <span className={u.role !== r ? "pl-3.75" : ""}>{roleLabel(r)}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </td>
 
@@ -296,6 +302,30 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* Role dropdown — rendered fixed outside table to avoid overflow clipping */}
+      {openDropdown && dropdownPos && (() => {
+        const targetUser = users.find((u) => u.id === openDropdown);
+        if (!targetUser) return null;
+        return (
+          <div
+            className="fixed bg-white border border-gray-100 rounded-lg shadow-lg z-50 py-1 min-w-35"
+            style={{
+              top: dropdownPos.openUp ? undefined : dropdownPos.top,
+              bottom: dropdownPos.openUp ? window.innerHeight - dropdownPos.top + 4 : undefined,
+              left: dropdownPos.left,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {ROLES.map((r) => (
+              <button key={r} onClick={() => changeRole(targetUser.id, r)} className="w-full flex items-center gap-2 px-3 py-2 text-xs capitalize text-gray-700 hover:bg-gray-50 transition">
+                {targetUser.role === r && <Check size={11} className="text-green-900 shrink-0" />}
+                <span className={targetUser.role !== r ? "pl-3.75" : ""}>{roleLabel(r)}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
