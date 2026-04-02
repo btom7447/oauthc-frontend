@@ -6,7 +6,7 @@ import { api } from "@/lib/api-client";
 const FALLBACK = "/logo.png";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ArrowUpRight } from "lucide-react";
+import { X, ArrowUpRight, Megaphone } from "lucide-react";
 
 export type AnnouncementItem = {
   id: string | number;
@@ -139,8 +139,6 @@ export default function AnnouncementSection({
 
   const items = propItems && propItems.length > 0 ? propItems : fetched;
 
-  if (!loading && !items?.length) return null;
-
   const featured = items.find((i) => i.featured) ?? items[0];
   const rest = items.filter((i) => i.id !== featured?.id).slice(0, 4);
 
@@ -181,6 +179,13 @@ export default function AnnouncementSection({
                   </div>
                 ))}
               </div>
+            </div>
+          ) : !items?.length ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                <Megaphone size={24} strokeWidth={1.5} className="text-gray-300" />
+              </div>
+              <p className="text-gray-500 text-sm">No announcements at the moment. Check back soon for updates.</p>
             </div>
           ) : (
             /* Newspaper Grid */

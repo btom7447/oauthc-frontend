@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Building2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { CenterCardSkeleton } from "@/components/skeleton/CenterCardSkeleton";
 
@@ -75,15 +75,26 @@ export default function CentersSection() {
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {loading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <CenterCardSkeleton key={i} />
-              ))
-            : centers.map((loc) => (
-                <CenterCard key={loc.id} loc={loc} />
-              ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <CenterCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : centers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+              <Building2 size={24} strokeWidth={1.5} className="text-gray-300" />
+            </div>
+            <p className="text-gray-500 text-sm">Our centres and locations are being updated. Check back soon.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {centers.map((loc) => (
+              <CenterCard key={loc.id} loc={loc} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

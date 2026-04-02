@@ -86,6 +86,8 @@ export default function DepartmentsCentersPage() {
         isLoading={isLoading}
         skeletonCount={8}
         renderSkeleton={() => <DepartmentGridSkeleton />}
+        emptyTitle="No departments listed yet"
+        emptyMessage="Department information is being updated. Please check back soon."
       />
       <TestimonialsSection />
     </>

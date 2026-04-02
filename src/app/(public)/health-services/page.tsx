@@ -94,6 +94,8 @@ export default function HealthServicesPage() {
         isLoading={isLoading}
         skeletonCount={12}
         renderSkeleton={() => <HealthServiceCardSkeleton />}
+        emptyTitle="No health services listed yet"
+        emptyMessage="Our health services directory is being updated. Please check back soon."
       />
     </>
   );

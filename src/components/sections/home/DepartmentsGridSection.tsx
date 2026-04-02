@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { HeartPulse } from "lucide-react";
+import { HeartPulse, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { DepartmentSkeletonCards } from "@/components/skeleton/DepartmentSkeletonCard";
@@ -74,15 +74,26 @@ export default function DepartmentsSection() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {loading
-            ? Array.from({ length: 8 }).map((_, i) => (
-                <DepartmentSkeletonCards key={i} />
-              ))
-            : data.map((dept, index) => (
-                <DepartmentCard key={dept.id} dept={dept} index={index} />
-              ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <DepartmentSkeletonCards key={i} />
+            ))}
+          </div>
+        ) : data.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+              <Inbox size={24} strokeWidth={1.5} className="text-gray-300" />
+            </div>
+            <p className="text-gray-500 text-sm">Departments are being updated. Check back soon.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {data.map((dept, index) => (
+              <DepartmentCard key={dept.id} dept={dept} index={index} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

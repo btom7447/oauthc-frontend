@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { MapPin } from "lucide-react";
+import { MapPin, Building2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import PageBreadcrumb from "@/components/shared/breadcrumb";
 import LocationCard, { type Location } from "@/components/cards/LocationCard";
@@ -120,15 +120,27 @@ export default function LocationsPage() {
           </div>
 
           {/* Locations list */}
-          <div className="flex flex-col divide-y divide-gray-200">
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <LocationCardSkeleton key={i} />
-                ))
-              : cardLocations.map((loc) => (
-                  <LocationCard key={loc.id} loc={loc} />
-                ))}
-          </div>
+          {isLoading ? (
+            <div className="flex flex-col divide-y divide-gray-200">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <LocationCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : cardLocations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                <Building2 size={24} strokeWidth={1.5} className="text-gray-300" />
+              </div>
+              <p className="text-gray-700 font-semibold">No locations listed yet</p>
+              <p className="text-gray-400 text-sm">Our location directory is being updated. Please check back soon.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-gray-200">
+              {cardLocations.map((loc) => (
+                <LocationCard key={loc.id} loc={loc} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </>

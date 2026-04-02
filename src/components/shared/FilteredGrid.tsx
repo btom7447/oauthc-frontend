@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ArrowUpAZ,
   ArrowDownZA,
+  Inbox,
 } from "lucide-react";
 
 type FilteredGridProps<T> = {
@@ -26,6 +27,8 @@ type FilteredGridProps<T> = {
   skeletonCount?: number;
   renderSkeleton: () => React.ReactNode;
   additionalFilters?: React.ReactNode;
+  emptyTitle?: string;
+  emptyMessage?: string;
 };
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | "...")[] {
@@ -63,6 +66,8 @@ export default function FilteredGrid<T>({
   skeletonCount = 8,
   renderSkeleton,
   additionalFilters,
+  emptyTitle = "Nothing here yet",
+  emptyMessage = "Content for this section hasn\u2019t been added yet. Check back soon.",
 }: FilteredGridProps<T>) {
   const rangeStart = totalItems === 0 ? 0 : (currentPage - 1) * perPage + 1;
   const rangeEnd = Math.min(currentPage * perPage, totalItems);
@@ -131,13 +136,31 @@ export default function FilteredGrid<T>({
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {isLoading
-            ? Array.from({ length: skeletonCount }).map((_, i) => (
-                <React.Fragment key={i}>{renderSkeleton()}</React.Fragment>
-              ))
-            : items.map((item, index) => renderItem(item, index))}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: skeletonCount }).map((_, i) => (
+              <React.Fragment key={i}>{renderSkeleton()}</React.Fragment>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+              <Inbox size={28} strokeWidth={1.5} className="text-gray-300" />
+            </div>
+            <div>
+              <p className="text-gray-700 font-semibold text-lg">{searchQuery ? "No results found" : emptyTitle}</p>
+              <p className="text-gray-400 text-sm mt-1 max-w-md">
+                {searchQuery
+                  ? `We couldn\u2019t find anything matching \u201C${searchQuery}\u201D. Try a different search term.`
+                  : emptyMessage}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {items.map((item, index) => renderItem(item, index))}
+          </div>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && !isLoading && (

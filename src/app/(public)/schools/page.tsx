@@ -73,6 +73,8 @@ export default function SchoolsPage() {
         isLoading={isLoading}
         skeletonCount={8}
         renderSkeleton={() => <SchoolCardSkeleton />}
+        emptyTitle="No schools listed yet"
+        emptyMessage="Our affiliated schools directory is being updated. Please check back soon."
       />
     </>
   );

@@ -155,6 +155,8 @@ export default function DoctorsPage() {
         skeletonCount={9}
         renderSkeleton={() => <DoctorCardSkeleton />}
         additionalFilters={additionalFilters}
+        emptyTitle="No doctors listed yet"
+        emptyMessage="Our doctor directory is being updated. Please check back soon."
       />
     </>
   );
