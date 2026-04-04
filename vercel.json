@@ -2,7 +2,39 @@
   "rewrites": [
     {
       "source": "/:path*.php",
-      "destination": "http://legacy.oauthc.gov.ng/:path*.php"
+      "destination": "https://legacy.oauthc.gov.ng/:path*.php"
+    },
+    {
+      "source": "/webmail",
+      "destination": "https://legacy.oauthc.gov.ng/webmail"
+    },
+    {
+      "source": "/webmail/:path*",
+      "destination": "https://legacy.oauthc.gov.ng/webmail/:path*"
+    },
+    {
+      "source": "/employment",
+      "destination": "https://legacy.oauthc.gov.ng/employment"
+    },
+    {
+      "source": "/employment/:path*",
+      "destination": "https://legacy.oauthc.gov.ng/employment/:path*"
+    },
+    {
+      "source": "/portal",
+      "destination": "https://legacy.oauthc.gov.ng/portal"
+    },
+    {
+      "source": "/portal/:path*",
+      "destination": "https://legacy.oauthc.gov.ng/portal/:path*"
+    },
+    {
+      "source": "/schools",
+      "destination": "https://legacy.oauthc.gov.ng/schools"
+    },
+    {
+      "source": "/schools/:path*",
+      "destination": "https://legacy.oauthc.gov.ng/schools/:path*"
     }
   ]
 }
