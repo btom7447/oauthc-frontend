@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/:path*.php",
-      "destination": "http://102.210.146.92/:path*.php"
+      "destination": "http://legacy.oauthc.gov.ng/:path*.php"
     }
   ]
 }
